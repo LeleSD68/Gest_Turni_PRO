@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { useApp } from '../store';
 import { getMonthDays, formatDateKey, getEntry, calculateMatrixShift, validateCell, getShiftByCode, getSuggestions, parseISO, isOperatorEmployed, getItalianHolidayName } from '../utils';
 import { format, isToday, isWeekend, addMonths, differenceInDays, addDays, isWithinInterval, isSameMonth, isSunday, isBefore } from 'date-fns';
-import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2 } from 'lucide-react';
 import { Button, Modal, Select, Input, Badge } from '../components/UI';
 import { PlannerEntry, ViewMode, ShiftType, SpecialEvent, CoverageConfig } from '../types';
 import { OperatorDetailModal } from '../components/OperatorDetailModal';
@@ -22,6 +22,8 @@ type LastOperation = {
 } | {
     type: 'DELETE';
 };
+
+const ITALIAN_MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
 
 export const Planner = () => {
   const { state, dispatch, history } = useApp();
@@ -312,6 +314,84 @@ export const Planner = () => {
       const b = parseInt(hexColor.substring(5, 7), 16);
       const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
       return yiq >= 128 ? 'text-slate-900' : 'text-white';
+  };
+
+  // --- Export to Google Sheets (Clipboard TSV) ---
+  const handleExportForGoogleSheets = async () => {
+        const days = currentMonthDays;
+        
+        const d = parseISO(state.currentDate);
+        const capMonthYear = `${ITALIAN_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+
+        // Map for Day Headers: L, M, M, G, V, S, D
+        const getDayLetter = (d: Date) => {
+            const dayIdx = d.getDay(); // 0=Sun, 1=Mon...
+            const map = ['D', 'L', 'M', 'M', 'G', 'V', 'S'];
+            return map[dayIdx];
+        };
+
+        // 1. Header Row 1: Month Year, Empty, Days 1..31
+        let tsv = `${capMonthYear}\t\t`;
+        tsv += days.map(d => format(d, 'd')).join('\t');
+        tsv += '\n';
+
+        // 2. Header Row 2: Operatore, Ore Totali, Day Letters
+        tsv += `Operatore\tOre Totali\t`;
+        tsv += days.map(d => getDayLetter(d)).join('\t');
+        tsv += '\n';
+
+        // 3. Data Rows
+        filteredOperators.forEach(op => {
+            const name = `${op.lastName} ${op.firstName}`.toUpperCase();
+            
+            // Calculate Total Hours for the month row
+            const totalHours = days.reduce((acc, d) => {
+                const dateKey = formatDateKey(d);
+                if (!isOperatorEmployed(op, dateKey)) return acc;
+                const entry = getEntry(state, op.id, dateKey);
+                const shiftCode = entry?.shiftCode || calculateMatrixShift(op, dateKey, state.matrices) || '';
+                const shift = getShiftByCode(shiftCode, state.shiftTypes);
+                
+                let hours = entry?.customHours;
+                if (hours === undefined && shift?.inheritsHours) {
+                    const matrixCode = calculateMatrixShift(op, dateKey, state.matrices);
+                    const matrixShift = getShiftByCode(matrixCode || '', state.shiftTypes);
+                    if (matrixShift) hours = matrixShift.hours;
+                }
+                hours = hours ?? shift?.hours ?? 0;
+                
+                // Add special events (additive)
+                const special = entry?.specialEvents?.reduce((s, ev) => (ev.mode === 'ADDITIVE' || !ev.mode) ? s + ev.hours : s, 0) ?? 0;
+                
+                return acc + hours + special;
+            }, 0);
+
+            // Build Shifts Row
+            const shiftCells = days.map(d => {
+                const dateKey = formatDateKey(d);
+                if (!isOperatorEmployed(op, dateKey)) return '';
+                const entry = getEntry(state, op.id, dateKey);
+                const matrixShift = calculateMatrixShift(op, dateKey, state.matrices);
+                let code = entry?.shiftCode || matrixShift || '';
+                // Append * if there are special events, optional but useful
+                // if (entry?.specialEvents && entry.specialEvents.length > 0) code += '*';
+                return code;
+            }).join('\t');
+
+            // Format hours with comma for Google Sheets Locale IT
+            const hoursStr = totalHours.toFixed(1).replace('.', ',');
+
+            tsv += `${name}\t${hoursStr}\t${shiftCells}\n`;
+        });
+
+        // Copy to clipboard
+        try {
+            await navigator.clipboard.writeText(tsv);
+            alert("Dati copiati negli appunti!\n\nVai sul tuo foglio Google 'Master', seleziona la cella A1 e premi Ctrl+V (Incolla).\nQuesto formato è ottimizzato per IMPORTRANGE.");
+        } catch (err) {
+            console.error('Failed to copy', err);
+            alert("Impossibile copiare negli appunti. Controlla i permessi del browser.");
+        }
   };
 
   // --- Handlers ---
@@ -981,8 +1061,7 @@ export const Planner = () => {
   const formatMonth = (dateStr: string) => {
       const d = parseISO(dateStr);
       if (isNaN(d.getTime())) return "Data non valida";
-      const months = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
-      return `${months[d.getMonth()]} ${d.getFullYear()}`;
+      return `${ITALIAN_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
   };
 
   const formatDayName = (d: Date) => {
@@ -1394,6 +1473,7 @@ export const Planner = () => {
            {clipboard && selectedCell && (
                <Button variant="primary" onClick={handlePasteSelection} title="Incolla"><ClipboardPaste size={16} /></Button>
            )}
+           <Button variant="secondary" onClick={handleExportForGoogleSheets} title="Copia per Google Sheets"><Share2 size={16} /></Button>
            <Button variant="secondary" onClick={handleExportCSV} title="CSV"><FileSpreadsheet size={16} /></Button>
            <Button variant="secondary" onClick={handleApplyMatricesClick} title="Matrici"><Wand2 size={16} /></Button>
            <Button variant="secondary" onClick={() => setShowPrintPreview(true)} title="Stampa"><Printer size={16} /></Button>
@@ -1527,13 +1607,13 @@ export const Planner = () => {
                                                             <span className="absolute left-0.5 text-[8px] font-mono font-bold text-slate-300">{k.charAt(0)}</span>
                                                             
                                                             {/* Content Wrapper to center both numbers together */}
-                                                            <div className="flex items-baseline justify-center w-full pl-2">
+                                                            <div className="flex items-baseline justify-center w-full pl-2 gap-1">
                                                                 {/* Main Count */}
                                                                 <span className={`text-[11px] font-bold ${color}`}>{mainCount}</span>
                                                                 
-                                                                {/* Support Count: Text Only, High Visibility */}
+                                                                {/* Support Count: Text Only (NO BADGE), High Visibility */}
                                                                 {supportCount > 0 && (
-                                                                    <span className="ml-1 text-[9px] font-black text-fuchsia-600" title={`${supportCount} ${supportLabel}`}>
+                                                                    <span className="text-[9px] font-black text-fuchsia-600 flex items-center" title={`${supportCount} ${supportLabel}`}>
                                                                         +{supportCount}<span className="text-[7px] uppercase ml-px">{supportLabel}</span>
                                                                     </span>
                                                                 )}
