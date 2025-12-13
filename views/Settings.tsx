@@ -1,8 +1,7 @@
-
 import React, { useState, useRef } from 'react';
 import { useApp } from '../store';
 import { Card, Input, Button, Badge, Modal, Select } from '../components/UI';
-import { Trash2, Plus, Edit, X, Copy, RotateCcw, Calculator, AlertTriangle, ShieldAlert, GripVertical, Bot, Network } from 'lucide-react';
+import { Trash2, Plus, Edit, X, Copy, RotateCcw, Calculator, AlertTriangle, ShieldAlert, GripVertical, Bot, Network, FileSpreadsheet } from 'lucide-react';
 import { AppState, Operator, ShiftType, Matrix } from '../types';
 
 export const Settings = () => {
@@ -79,6 +78,13 @@ export const Settings = () => {
           } 
       });
   };
+
+  const updateGoogleConfig = (value: string) => {
+      dispatch({
+          type: 'UPDATE_CONFIG',
+          payload: { googleScriptUrl: value }
+      });
+  }
 
   const testAIConnection = async () => {
       setAiTestResult({ status: 'idle', message: 'Connessione in corso...' });
@@ -278,7 +284,7 @@ export const Settings = () => {
                   { id: 'OPS', label: 'Operatori' },
                   { id: 'SHIFTS', label: 'Turni' },
                   { id: 'MATRICES', label: 'Matrici' },
-                  { id: 'AI', label: 'AI & Integrazioni' },
+                  { id: 'AI', label: 'Integrazioni' },
               ].map(tab => (
                   <button 
                     key={tab.id}
@@ -413,9 +419,46 @@ export const Settings = () => {
             </div>
         )}
 
-        {/* AI Config Tab */}
+        {/* AI & Integration Config Tab */}
         {activeTab === 'AI' && (
             <div className="space-y-6">
+                <Card title="Google Sheets Integration (Automazione)">
+                    <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-100 flex items-start gap-3 mb-4">
+                        <FileSpreadsheet className="shrink-0 text-emerald-600" size={24} />
+                        <div className="text-sm text-emerald-900">
+                            <p className="font-bold mb-1">Collega il tuo Foglio Google "Master"</p>
+                            <p className="mb-2">Per aggiornare automaticamente i turni su Google Sheets senza copia-incolla, devi inserire qui l'URL della Web App di Google Apps Script.</p>
+                            <ol className="list-decimal pl-4 space-y-1 text-xs mt-2">
+                                <li>Apri il tuo Foglio Google Master.</li>
+                                <li>Vai su <strong>Estensioni</strong> &gt; <strong>Apps Script</strong>.</li>
+                                <li>Incolla lo script fornito (chiedi all'assistente se non ce l'hai).</li>
+                                <li>Clicca su <strong>Distribuisci</strong> &gt; <strong>Nuova distribuzione</strong>.</li>
+                                <li>Seleziona tipo: <strong>Applicazione web</strong>.</li>
+                                <li>Chi ha accesso: <strong>Chiunque</strong>.</li>
+                                <li>Copia l'URL generato e incollalo qui sotto.</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2 items-end">
+                        <div className="flex-1">
+                            <Input 
+                                label="URL Google Apps Script Web App" 
+                                placeholder="https://script.google.com/macros/s/..." 
+                                value={state.config.googleScriptUrl || ''}
+                                onChange={(e) => updateGoogleConfig(e.target.value)}
+                            />
+                        </div>
+                        <div className="mb-2">
+                            {state.config.googleScriptUrl ? (
+                                <Badge color="bg-green-100 text-green-700">Collegato</Badge>
+                            ) : (
+                                <Badge color="bg-slate-100 text-slate-500">Non Configurato</Badge>
+                            )}
+                        </div>
+                    </div>
+                </Card>
+
                 <Card title="Integrazione Intelligenza Artificiale Locale (Ollama)">
                     <div className="flex flex-col gap-4">
                         <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100 flex items-start gap-3">

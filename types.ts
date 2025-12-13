@@ -154,6 +154,7 @@ export interface AppState {
     maxConsecutiveDays: number;
     coverage: CoverageConfig;
     ai: AIConfig;
+    googleScriptUrl?: string; // NEW: URL for Google Apps Script Web App
   };
 }
 

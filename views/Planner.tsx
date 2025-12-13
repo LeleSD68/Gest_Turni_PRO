@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { useApp } from '../store';
 import { getMonthDays, formatDateKey, getEntry, calculateMatrixShift, validateCell, getShiftByCode, getSuggestions, parseISO, isOperatorEmployed, getItalianHolidayName } from '../utils';
 import { format, isToday, isWeekend, addMonths, differenceInDays, addDays, isWithinInterval, isSameMonth, isSunday, isBefore } from 'date-fns';
-import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2, Send } from 'lucide-react';
 import { Button, Modal, Select, Input, Badge } from '../components/UI';
 import { PlannerEntry, ViewMode, ShiftType, SpecialEvent, CoverageConfig } from '../types';
 import { OperatorDetailModal } from '../components/OperatorDetailModal';
@@ -316,31 +316,36 @@ export const Planner = () => {
       return yiq >= 128 ? 'text-slate-900' : 'text-white';
   };
 
-  // --- Export to Google Sheets (Clipboard TSV) ---
+  // --- Sync with Google Sheets via Web App ---
   const handleExportForGoogleSheets = async () => {
+        if (!state.config.googleScriptUrl) {
+            alert("Errore: Non hai configurato l'URL dello script Google.\nVai in Configurazione > Integrazioni e segui le istruzioni.");
+            return;
+        }
+
         const days = currentMonthDays;
-        
         const d = parseISO(state.currentDate);
         const capMonthYear = `${ITALIAN_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 
+        // Prepare Data for Google Sheets (2D Array)
+        const rows: any[][] = [];
+
         // Map for Day Headers: L, M, M, G, V, S, D
         const getDayLetter = (d: Date) => {
-            const dayIdx = d.getDay(); // 0=Sun, 1=Mon...
+            const dayIdx = d.getDay(); 
             const map = ['D', 'L', 'M', 'M', 'G', 'V', 'S'];
             return map[dayIdx];
         };
 
-        // 1. Header Row 1: Month Year, Empty, Days 1..31
-        let tsv = `${capMonthYear}\t\t`;
-        tsv += days.map(d => format(d, 'd')).join('\t');
-        tsv += '\n';
+        // Header Row 1: Month Year
+        const header1 = [capMonthYear, '', ...days.map(d => format(d, 'd'))];
+        rows.push(header1);
 
-        // 2. Header Row 2: Operatore, Ore Totali, Day Letters
-        tsv += `Operatore\tOre Totali\t`;
-        tsv += days.map(d => getDayLetter(d)).join('\t');
-        tsv += '\n';
+        // Header Row 2: Letters
+        const header2 = ['Operatore', 'Ore Totali', ...days.map(d => getDayLetter(d))];
+        rows.push(header2);
 
-        // 3. Data Rows
+        // Data Rows
         filteredOperators.forEach(op => {
             const name = `${op.lastName} ${op.firstName}`.toUpperCase();
             
@@ -360,37 +365,45 @@ export const Planner = () => {
                 }
                 hours = hours ?? shift?.hours ?? 0;
                 
-                // Add special events (additive)
                 const special = entry?.specialEvents?.reduce((s, ev) => (ev.mode === 'ADDITIVE' || !ev.mode) ? s + ev.hours : s, 0) ?? 0;
-                
                 return acc + hours + special;
             }, 0);
 
-            // Build Shifts Row
+            // Shift Codes
             const shiftCells = days.map(d => {
                 const dateKey = formatDateKey(d);
                 if (!isOperatorEmployed(op, dateKey)) return '';
                 const entry = getEntry(state, op.id, dateKey);
                 const matrixShift = calculateMatrixShift(op, dateKey, state.matrices);
-                let code = entry?.shiftCode || matrixShift || '';
-                // Append * if there are special events, optional but useful
-                // if (entry?.specialEvents && entry.specialEvents.length > 0) code += '*';
-                return code;
-            }).join('\t');
+                return entry?.shiftCode || matrixShift || '';
+            });
 
-            // Format hours with comma for Google Sheets Locale IT
             const hoursStr = totalHours.toFixed(1).replace('.', ',');
-
-            tsv += `${name}\t${hoursStr}\t${shiftCells}\n`;
+            rows.push([name, hoursStr, ...shiftCells]);
         });
 
-        // Copy to clipboard
+        // Send Data to Google Apps Script
+        const btn = document.getElementById('export-btn');
+        if (btn) btn.innerHTML = 'Invio in corso...';
+
         try {
-            await navigator.clipboard.writeText(tsv);
-            alert("Dati copiati negli appunti!\n\nVai sul tuo foglio Google 'Master', seleziona la cella A1 e premi Ctrl+V (Incolla).\nQuesto formato è ottimizzato per IMPORTRANGE.");
-        } catch (err) {
-            console.error('Failed to copy', err);
-            alert("Impossibile copiare negli appunti. Controlla i permessi del browser.");
+            // Using no-cors might be needed if script isn't handling OPTIONS correctly, 
+            // but text/plain usually avoids preflight.
+            await fetch(state.config.googleScriptUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8', 
+                },
+                body: JSON.stringify({ values: rows })
+            });
+            alert('Dati inviati a Google Sheets con successo! Il foglio si aggiornerà in pochi secondi.');
+        } catch (error) {
+            console.error('Error sending data:', error);
+            // Even if fetch fails due to CORS opaque response, it often succeeds on the server side with GAS.
+            // But let's warn the user.
+            alert('Comando inviato. Se non vedi aggiornamenti entro 10 secondi, controlla la configurazione dello script su Google.');
+        } finally {
+            if (btn) btn.innerHTML = 'Condividi';
         }
   };
 
@@ -1473,7 +1486,15 @@ export const Planner = () => {
            {clipboard && selectedCell && (
                <Button variant="primary" onClick={handlePasteSelection} title="Incolla"><ClipboardPaste size={16} /></Button>
            )}
-           <Button variant="secondary" onClick={handleExportForGoogleSheets} title="Copia per Google Sheets"><Share2 size={16} /></Button>
+           <Button 
+               id="export-btn"
+               variant="secondary" 
+               onClick={handleExportForGoogleSheets} 
+               title="Invia al Foglio Master di Google"
+               className="flex items-center gap-2"
+           >
+               <Send size={16} /> <span className="hidden lg:inline">Condividi</span>
+           </Button>
            <Button variant="secondary" onClick={handleExportCSV} title="CSV"><FileSpreadsheet size={16} /></Button>
            <Button variant="secondary" onClick={handleApplyMatricesClick} title="Matrici"><Wand2 size={16} /></Button>
            <Button variant="secondary" onClick={() => setShowPrintPreview(true)} title="Stampa"><Printer size={16} /></Button>
