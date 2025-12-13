@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ShiftMaster Pro</title>
+    <!-- Tailwind via CDN è accettabile per semplicità, anche se in produzione sarebbe meglio post-css -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: '#0f172a', // Slate 900
+              secondary: '#3b82f6', // Blue 500
+              accent: '#f59e0b', // Amber 500
+              danger: '#ef4444', // Red 500
+              success: '#22c55e', // Green 500
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      /* Custom scrollbar for planner */
+      .planner-scroll::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      .planner-scroll::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      .planner-scroll::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+      }
+      .planner-scroll::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+
+      /* STAMPA: Logica aggressiva per nascondere l'app e mostrare solo il layout di stampa */
+      @media print {
+        @page {
+          size: A3 landscape; /* Impostazione pagina A3 Orizzontale */
+          margin: 0;
+        }
+        
+        /* Nasconde TUTTO il contenuto della pagina di base */
+        body > * {
+          display: none !important;
+        }
+
+        /* Rende visibile SOLO l'area di stampa specifica */
+        body > .print-area-container {
+          display: block !important;
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          height: 100%;
+          z-index: 99999;
+          background-color: #1e3a8a !important; /* Forza sfondo blu in stampa */
+          margin: 0;
+          padding: 0;
+        }
+
+        /* Assicura che i colori di sfondo vengano stampati */
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.559.0",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.1",
+    "vite": "https://aistudiocdn.com/vite@^7.2.7",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.2"
+  }
+}
+</script>
+</head>
+  <body class="bg-gray-50 text-slate-800 antialiased h-screen overflow-hidden">
+    <div id="root" class="h-full flex flex-col"></div>
+    <!-- Container separato per la stampa che esiste fuori da root -->
+    <div id="print-root" class="print-area-container hidden"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
