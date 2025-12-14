@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 const generateDefaultContract = (id: string) => ([{ id: `c-${id}`, start: '2025-01-01' }]);
 
 const initialState: AppState = {
-  isAuthenticated: true, // TEMPORARY: Default true to bypass login
+  isAuthenticated: false, // Default false per richiedere login
   lastLogin: Date.now(),
   currentDate: format(new Date(), 'yyyy-MM-01'),
   operators: [
@@ -127,7 +127,7 @@ const initialState: AppState = {
         baseUrl: 'http://localhost:11434',
         model: 'llama3'
     },
-    googleScriptUrl: '' // Inizializzazione vuota
+    googleScriptUrl: ''
   },
 };
 
@@ -244,7 +244,7 @@ const appReducer = (state: AppState, action: Action): AppState => {
         calls: incoming.calls || [],
         matrixSwaps: incoming.matrixSwaps || [],
         currentDate: incoming.currentDate || initialState.currentDate, 
-        isAuthenticated: true // If data is loaded successfully, we assume auth passed
+        isAuthenticated: true 
       };
     }
     case 'ADD_OPERATOR':
@@ -318,7 +318,6 @@ const undoableReducer = (state: HistoryAwareState, action: Action): HistoryAware
   
   if (newPresent === present) return state; 
 
-  // Transient actions dont create history
   const isTransientAction = 
     action.type === 'SET_DATE' || 
     action.type === 'ADD_LOG' ||
@@ -375,29 +374,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'SAVED' | 'ERROR' | 'UNAUTHORIZED'>('IDLE');
-  // Load initial access code from localStorage if available to persist session
   const [accessCode, setAccessCode] = useState(() => localStorage.getItem('shiftmaster_access_code') || '');
 
-  // Function to verify auth against backend
-  const checkAuth = useCallback(async (codeToVerify: string) => {
-      // In bypass mode, we just return true
-      dispatch({ type: 'LOGIN_SUCCESS' });
-      return true;
-  }, []);
-
-  // Logic to fetch from cloud
+  // Logic to fetch from cloud (Defined before checkAuth to use it)
   const syncFromCloud = useCallback(async (isAutoSync = false) => {
-    // TEMPORARY BYPASS: removed check for accessCode
-    // if (!accessCode) { ... }
+    if (!accessCode) return;
 
     try {
         if (!isAutoSync) setSyncStatus('SYNCING');
-        const res = await fetch('/.netlify/functions/db-sync', {
-            headers: { 'Authorization': `Bearer ${accessCode || ''}` }
+        const res = await fetch('/api/db-sync', {
+            headers: { 'Authorization': `Bearer ${accessCode}` }
         });
         
         if (res.status === 401) {
-            // Should not happen if backend is also updated
             setSyncStatus('UNAUTHORIZED');
             return;
         }
@@ -409,59 +398,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 const localTs = historyState.present.lastLogin;
                 const cloudTs = cloudData.lastLogin || 0;
 
+                // Always load on explicit sync (like initial load) or if cloud is newer
                 if (cloudTs > localTs || !isAutoSync) {
                      dispatch({ type: 'RESTORE_BACKUP', payload: cloudData });
                      if (!isAutoSync) setSyncStatus('SAVED');
                 }
             } else {
+                // Primo avvio con DB vuoto o pulito
                 if (!isAutoSync) setSyncStatus('IDLE');
-                // Ensure we are logged in even if DB is empty
                 dispatch({ type: 'LOGIN_SUCCESS' }); 
             }
         } else {
-            if (!isAutoSync) setSyncStatus('IDLE');
+            if (!isAutoSync) setSyncStatus('ERROR');
         }
     } catch (e) {
         console.error("Cloud sync failed", e);
         if (!isAutoSync) setSyncStatus('ERROR');
     }
-  }, [historyState.present.lastLogin, accessCode]);
+  }, [accessCode]); // Removing historyState.present dependency to avoid loops
 
-  // 1. Initial Load
-  useEffect(() => {
-      // Always try sync on mount in bypass mode
-      syncFromCloud(false);
-  }, []); 
+  const checkAuth = useCallback(async (codeToVerify: string) => {
+      setAccessCode(codeToVerify);
+      localStorage.setItem('shiftmaster_access_code', codeToVerify);
+      
+      try {
+          const res = await fetch('/api/db-sync', {
+              headers: { 'Authorization': `Bearer ${codeToVerify}` }
+          });
+          
+          if (res.status === 401) {
+              return false;
+          }
+          
+          // Se auth ok, scarichiamo subito i dati!
+          if (res.ok) {
+              const cloudData = await res.json();
+              if (cloudData && cloudData.plannerData) {
+                  dispatch({ type: 'RESTORE_BACKUP', payload: cloudData });
+              } else {
+                  dispatch({ type: 'LOGIN_SUCCESS' });
+              }
+              setSyncStatus('SAVED');
+          } else {
+              // DB Error but auth ok
+              dispatch({ type: 'LOGIN_SUCCESS' });
+          }
+          return true;
+      } catch (e) {
+          console.error("Auth check failed", e);
+          return false;
+      }
+  }, []);
 
-  // 2. Poll for updates
+  // 1. Initial Load (if code exists in localStorage)
   useEffect(() => {
+      if (accessCode) {
+          syncFromCloud(false);
+      }
+  }, [accessCode]);
+
+  // 2. Poll for updates (Every 30s)
+  useEffect(() => {
+      if (!historyState.present.isAuthenticated) return;
       const intervalId = setInterval(() => {
           syncFromCloud(true);
       }, 30000); 
       return () => clearInterval(intervalId);
-  }, [syncFromCloud]);
+  }, [syncFromCloud, historyState.present.isAuthenticated]);
 
   // 3. Sync on Focus
   useEffect(() => {
+      if (!historyState.present.isAuthenticated) return;
       const handleFocus = () => syncFromCloud(true);
       window.addEventListener("focus", handleFocus);
       return () => window.removeEventListener("focus", handleFocus);
-  }, [syncFromCloud]);
+  }, [syncFromCloud, historyState.present.isAuthenticated]);
 
-  // 4. Save to Cloud
+  // 4. AUTO-SAVE: Triggered on ANY state change
   useEffect(() => {
-    // TEMPORARY BYPASS: removed check for accessCode
-    if (historyState.present.lastLogin > 0 && historyState.present.isAuthenticated) {
+    // Only save if authenticated and we have a valid lastLogin (prevents saving empty state over cloud state on boot)
+    if (historyState.present.isAuthenticated && historyState.present.lastLogin > 0) {
       
+      setSyncStatus('SYNCING'); // Immediate feedback UI
+
       const timeoutId = setTimeout(() => {
-          setSyncStatus('SYNCING');
           const payload = { ...historyState.present, lastLogin: Date.now() };
           
-          fetch('/.netlify/functions/db-sync', {
+          fetch('/api/db-sync', {
               method: 'POST',
               headers: { 
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${accessCode || ''}`
+                  'Authorization': `Bearer ${accessCode}`
               },
               body: JSON.stringify(payload)
           })
@@ -476,7 +503,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }
           })
           .catch(() => setSyncStatus('ERROR'));
-      }, 2000);
+      }, 2000); // Debounce 2s
 
       return () => clearTimeout(timeoutId);
     }

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { useApp } from '../store';
 import { getMonthDays, formatDateKey, getEntry, calculateMatrixShift, validateCell, getShiftByCode, getSuggestions, parseISO, isOperatorEmployed, getItalianHolidayName } from '../utils';
 import { format, isToday, isWeekend, addMonths, differenceInDays, addDays, isWithinInterval, isSameMonth, isSunday, isBefore } from 'date-fns';
-import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2, Send } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2, Send, Cloud, CloudOff, Loader2, CheckCircle } from 'lucide-react';
 import { Button, Modal, Select, Input, Badge } from '../components/UI';
 import { PlannerEntry, ViewMode, ShiftType, SpecialEvent, CoverageConfig } from '../types';
 import { OperatorDetailModal } from '../components/OperatorDetailModal';
@@ -26,7 +26,7 @@ type LastOperation = {
 const ITALIAN_MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
 
 export const Planner = () => {
-  const { state, dispatch, history } = useApp();
+  const { state, dispatch, history, syncStatus } = useApp();
   
   // State management
   const [displayMode, setDisplayMode] = useState<DisplayMode>('PLANNER_STANDARD');
@@ -1367,6 +1367,14 @@ export const Planner = () => {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 min-w-0">
+            {/* Sync Indicator */}
+            <div className="hidden lg:flex items-center mr-2 px-2 py-1 bg-slate-50 rounded border border-slate-200" title="Stato Cloud">
+                {syncStatus === 'SYNCING' && <><Loader2 size={16} className="animate-spin text-blue-500 mr-2" /><span className="text-xs text-blue-600 font-medium">Salvataggio...</span></>}
+                {syncStatus === 'SAVED' && <><CheckCircle size={16} className="text-emerald-500 mr-2" /><span className="text-xs text-emerald-600 font-medium">Salvato</span></>}
+                {syncStatus === 'ERROR' && <><CloudOff size={16} className="text-red-500 mr-2" /><span className="text-xs text-red-600 font-medium">Offline</span></>}
+                {syncStatus === 'IDLE' && <><Cloud size={16} className="text-slate-400 mr-2" /><span className="text-xs text-slate-500">Pronto</span></>}
+            </div>
+
             {/* Navigation & UNDO/REDO */}
             <div className="flex items-center gap-2 md:gap-4 overflow-x-auto">
                 <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 shrink-0">
@@ -1414,7 +1422,7 @@ export const Planner = () => {
                     </select>
                 </div>
 
-                <div className="hidden lg:flex items-center gap-2 px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-500 select-none">
+                <div className="hidden xl:flex items-center gap-2 px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-500 select-none">
                     <MousePointer2 size={12} />
                     <span>Tasto Dx: {lastOperation ? (lastOperation.type === 'UPDATE' ? lastOperation.shiftCode : 'Del') : '-'}</span>
                 </div>
