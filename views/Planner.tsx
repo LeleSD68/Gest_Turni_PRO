@@ -101,6 +101,7 @@ export const Planner = () => {
   const [lastOperation, setLastOperation] = useState<LastOperation | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const gridScrollRef = useRef<HTMLDivElement>(null);
 
   // Edit Modal Draft State
   const [draftShift, setDraftShift] = useState('');
@@ -298,6 +299,31 @@ export const Planner = () => {
       }
   }, [newSpecialStart, newSpecialEnd]);
 
+  // Auto-scroll to today on mobile
+  useEffect(() => {
+      if (window.innerWidth < 768 && days.length > 0) {
+          const todayKey = formatDateKey(new Date());
+          const isTodayVisible = days.some(d => formatDateKey(d) === todayKey);
+          
+          if (isTodayVisible) {
+              setTimeout(() => {
+                  const el = document.getElementById(`day-header-${todayKey}`);
+                  if (el && gridScrollRef.current) {
+                      const stickyWidth = 128; // w-32
+                      // Scroll so today is right after the sticky column
+                      const targetScroll = el.offsetLeft - stickyWidth;
+                      gridScrollRef.current.scrollTo({ left: targetScroll, behavior: 'smooth' });
+                  }
+              }, 100);
+          } else {
+              // Reset if not today (e.g. month navigation)
+              if (gridScrollRef.current) {
+                  gridScrollRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+              }
+          }
+      }
+  }, [state.currentDate, days]);
+
   // --- Helper Functions ---
   const getActiveShift = (opId: string, date: string) => {
     const op = state.operators.find(o => o.id === opId);
@@ -307,6 +333,7 @@ export const Planner = () => {
     return calculateMatrixShift(op, date, state.matrices) || '';
   };
 
+  // ... (rest of helper functions remain unchanged)
   const getContrastColor = (hexColor?: string) => {
       if (!hexColor) return 'text-slate-700';
       const r = parseInt(hexColor.substring(1, 3), 16);
@@ -517,6 +544,7 @@ export const Planner = () => {
     setEditMode(false);
   };
 
+  // ... (rest of handlers remain unchanged, including Right Click, Drag Drop etc.)
   const handleRightClick = (e: React.MouseEvent, opId: string, date: string, isEmployed: boolean) => {
       e.preventDefault();
       
@@ -1516,7 +1544,7 @@ export const Planner = () => {
         onMouseLeave={() => setHoveredDate(null)}
       >
           {/* RESTRUCTURED GRID FOR SCROLLING: The Header and Body must scroll together horizontally */}
-          <div className="flex-1 overflow-auto relative">
+          <div className="flex-1 overflow-auto relative" ref={gridScrollRef}>
              <div className="min-w-max">
                 {/* Header inside scrollable area */}
                 <div className="flex shrink-0 h-10 bg-slate-100 border-b border-slate-300 shadow-sm z-30 sticky top-0">
@@ -1552,7 +1580,10 @@ export const Planner = () => {
                         const isPast = isBefore(d, new Date(new Date().setHours(0,0,0,0)));
 
                         return (
-                          <div key={d.toString()} className={`flex-1 min-w-[44px] md:min-w-0 flex flex-col items-center justify-center border-r border-slate-200 text-[10px] md:text-xs overflow-hidden relative cursor-pointer transition-colors group ${isWeekend(d) ? 'bg-slate-200 text-slate-800' : 'text-slate-600'} ${isToday(d) ? 'bg-blue-100 font-bold text-blue-700' : ''} ${!isSameMonth(d, parseISO(state.currentDate)) ? 'opacity-60 bg-slate-100' : ''} ${isHovered ? 'bg-blue-200/50' : 'hover:bg-blue-50'} ${isPast && highlightPast ? 'opacity-40 bg-slate-200 grayscale' : ''}`}
+                          <div 
+                               key={d.toString()} 
+                               id={`day-header-${dateKey}`}
+                               className={`flex-1 min-w-[44px] md:min-w-0 flex flex-col items-center justify-center border-r border-slate-200 text-[10px] md:text-xs overflow-hidden relative cursor-pointer transition-colors group ${isWeekend(d) ? 'bg-slate-200 text-slate-800' : 'text-slate-600'} ${isToday(d) ? 'bg-blue-100 font-bold text-blue-700' : ''} ${!isSameMonth(d, parseISO(state.currentDate)) ? 'opacity-60 bg-slate-100' : ''} ${isHovered ? 'bg-blue-200/50' : 'hover:bg-blue-50'} ${isPast && highlightPast ? 'opacity-40 bg-slate-200 grayscale' : ''}`}
                                onClick={() => handleOpenDayNote(dateKey)}
                                onMouseEnter={() => setHoveredDate(dateKey)}
                                title={hasNote ? `Nota: ${state.dayNotes[dateKey]}` : (isHol ? `Festività: ${holidayName}` : "Clicca per aggiungere una nota")}
@@ -1711,7 +1742,7 @@ export const Planner = () => {
                       return (
                         <Fragment key={groupKey}>
                             {groupByMatrix && groupKey !== 'all' && (
-                                <div className="sticky left-0 z-10 bg-slate-50 border-y border-slate-200 font-bold text-[10px] md:text-xs text-slate-500 px-2 md:px-4 py-1 uppercase tracking-wider flex items-center gap-2">
+                                <div className="sticky left-0 z-30 bg-slate-50 border-y border-slate-200 font-bold text-[10px] md:text-xs text-slate-500 px-2 md:px-4 py-1 uppercase tracking-wider flex items-center gap-2">
                                     <div className="w-2 h-2 md:w-3 md:h-3 rounded-full border border-slate-300" style={{backgroundColor: groupColor}}></div>
                                     {groupName}
                                 </div>
@@ -1751,7 +1782,7 @@ export const Planner = () => {
                                 return (
                                     <div key={op.id} className="flex border-b border-slate-200 hover:bg-blue-50/50 transition-colors duration-0 h-10 md:h-8 group">
                                       <div 
-                                        className="w-32 md:w-48 shrink-0 bg-white border-r border-slate-200 flex flex-col justify-center pl-2 md:pl-4 py-1 z-10 border-l-4 truncate cursor-pointer group-hover:bg-blue-50 transition-colors sticky left-0 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"
+                                        className="w-32 md:w-48 shrink-0 bg-white border-r border-slate-200 flex flex-col justify-center pl-2 md:pl-4 py-1 z-30 border-l-4 truncate cursor-pointer group-hover:bg-blue-50 transition-colors sticky left-0 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"
                                         style={{ borderLeftColor: groupByMatrix && matrix ? matrix.color : 'transparent' }}
                                         onClick={() => setDetailsOpId(op.id)}
                                       >
@@ -2242,237 +2273,89 @@ export const Planner = () => {
                                             <button 
                                                 className={`flex-1 px-1 py-1 rounded text-[10px] font-bold transition-colors ${newSpecialMode === 'SUBSTITUTIVE' ? 'bg-slate-200 text-slate-700' : 'text-slate-400 hover:text-slate-600'}`}
                                                 onClick={() => setNewSpecialMode('SUBSTITUTIVE')}
-                                                title="Sostitutive (=)"
                                             >
-                                                = Sost.
+                                                Sostitutiva
                                             </button>
                                         </div>
                                     </div>
+                                    <div className="flex justify-end mt-2">
+                                        <Button variant="secondary" className="px-2 py-1 text-xs" onClick={handleAddSpecialEvent}>
+                                            <Plus size={12} className="mr-1 inline" /> Aggiungi
+                                        </Button>
+                                    </div>
 
-                                    <Button 
-                                        variant="primary" 
-                                        className="h-[34px] w-[34px] p-0 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700"
-                                        onClick={handleAddSpecialEvent}
-                                        title="Aggiungi Voce"
-                                    >
-                                        <Plus size={16} />
-                                    </Button>
-                               </div>
-                               
-                               {/* List of Special Events */}
-                               {draftSpecialEvents.length > 0 ? (
-                                   <div className="space-y-1">
-                                       {draftSpecialEvents.map(ev => (
-                                           <div key={ev.id} className="flex items-center justify-between bg-white p-2 border border-slate-200 rounded text-xs">
-                                               <div className="flex items-center gap-2">
-                                                   <span className={`font-bold ${ev.type === 'Gettone' ? 'text-emerald-700' : 'text-indigo-700'}`}>
-                                                       {ev.type}
-                                                   </span>
-                                                   {ev.type !== 'Gettone' ? (
-                                                       <>
-                                                            <span className="text-slate-500 font-mono">
-                                                                {ev.startTime} - {ev.endTime}
-                                                            </span>
-                                                            <div className="flex items-center gap-1">
-                                                                <Badge color={ev.hours > 0 ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-600'}>
-                                                                    {ev.hours}h
-                                                                </Badge>
-                                                                {ev.mode === 'SUBSTITUTIVE' ? (
-                                                                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1 rounded border border-slate-200" title="Sostitutivo">=</span>
-                                                                ) : (
-                                                                    <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1 rounded border border-indigo-100" title="Aggiuntivo">+</span>
-                                                                )}
-                                                            </div>
-                                                       </>
-                                                   ) : (
-                                                       <Badge color="bg-emerald-100 text-emerald-800">Forfait</Badge>
-                                                   )}
-                                               </div>
-                                               {/* Allow removing items, including Gettone if added here manually, though toggle handles it mostly */}
-                                               <button onClick={() => handleRemoveSpecialEvent(ev.id)} className="text-red-400 hover:text-red-600">
-                                                   <Trash2 size={14} />
-                                               </button>
-                                           </div>
-                                       ))}
-                                   </div>
-                               ) : (
-                                   <div className="text-center text-[10px] text-slate-400 italic py-1">Nessuna voce speciale inserita</div>
-                               )}
-                               
-                               <div className="text-[10px] text-indigo-500 mt-1 flex items-start gap-1">
-                                   <Info size={12} className="shrink-0 mt-0.5" />
-                                   Usa "=" per ore che sostituiscono il turno (es. Permessi), "+" per extra (es. Straordinari).
+                                    {/* List of draft special events */}
+                                    {draftSpecialEvents.length > 0 && (
+                                        <div className="space-y-1 mt-2 border-t pt-2 border-slate-200 max-h-32 overflow-y-auto">
+                                            {draftSpecialEvents.map((ev, idx) => (
+                                                <div key={ev.id || idx} className="flex justify-between items-center bg-white p-2 rounded border border-slate-200 text-xs shadow-sm">
+                                                    <div>
+                                                        <span className="font-bold text-indigo-700">{ev.type}</span>
+                                                        <span className="mx-1 text-slate-300">|</span>
+                                                        <span className="font-mono">{ev.hours}h</span>
+                                                        {ev.mode === 'SUBSTITUTIVE' && <span className="text-[9px] text-slate-400 ml-1 uppercase bg-slate-100 px-1 rounded">Sost.</span>}
+                                                        {(ev.startTime || ev.endTime) && <span className="ml-1 text-[10px] text-slate-500">({ev.startTime}-{ev.endTime})</span>}
+                                                    </div>
+                                                    <button onClick={() => handleRemoveSpecialEvent(ev.id)} className="text-slate-400 hover:text-red-500 transition-colors">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                </div>
                            </div>
                        )}
                    </div>
                )}
 
-               <Input 
-                 label="Note Turno" 
-                 placeholder="Motivazione aggiuntiva, luogo o note..." 
-                 value={draftNote}
-                 onChange={(e) => setDraftNote(e.target.value)}
-               />
-               
-               {draftShift && (() => {
-                   const violation = validateCell(state, selectedCell.opId, selectedCell.date, draftShift);
-                   if (violation) return (
-                       <div className="flex items-center gap-2 p-2 bg-red-50 text-red-700 rounded text-sm border border-red-100 animate-pulse">
-                           <AlertTriangle size={16} />
-                           <span className="font-medium">{violation}</span>
-                       </div>
-                   );
-                   return null;
-               })()}
-
-               <div className="border-t pt-4">
-                 <div className="flex justify-between items-center mb-3">
-                    <h4 className="font-bold text-sm text-slate-700 flex items-center gap-2">
-                        <Zap size={14} className="text-amber-500" />
-                        Suggerimenti Copertura
-                    </h4>
-                    <Button variant="ghost" className="px-2 py-1 text-xs h-auto" onClick={() => setShowSuggest(!showSuggest)}>
-                        {showSuggest ? 'Nascondi' : 'Mostra'}
-                    </Button>
-                 </div>
-                 
-                 {showSuggest && (
-                    <div className="max-h-48 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                        {suggestions.filter(s => s.operator.id !== selectedCell.opId).slice(0, 5).map((s, idx) => (
-                            <div key={idx} className="flex justify-between items-center text-sm p-2 bg-white rounded-md border border-slate-100 shadow-sm hover:border-blue-200 hover:shadow-md transition-all group">
-                                <div className="flex-1 min-w-0 flex items-center justify-between mr-2">
-                                    <div className="flex flex-col min-w-0 mr-2">
-                                        <div className="flex items-center gap-2">
-                                            <div className="font-bold text-slate-700 truncate" title={`${s.operator.lastName} ${s.operator.firstName}`}>
-                                                {s.operator.lastName} {s.operator.firstName}
-                                            </div>
-                                            <Badge color={s.score > 80 ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}>
-                                                {s.score}
-                                            </Badge>
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 mt-0.5 flex flex-wrap gap-1">
-                                            {s.reasons.slice(0,2).map((r, i) => <span key={i} className="bg-slate-50 px-1 rounded border border-slate-100">{r}</span>)}
-                                        </div>
-                                    </div>
-                                    
-                                    {/* CONTEXT TIMELINE: 5 days before, 5 days after */}
-                                    <div className="flex gap-0.5 opacity-90 overflow-hidden shrink-0 bg-slate-50 p-1 rounded border border-slate-100">
-                                        {Array.from({ length: 11 }).map((_, i) => {
-                                            const offset = i - 5;
-                                            if (offset === 0) return (
-                                                <div key={i} className="w-4 h-4 flex items-center justify-center border-b-2 border-blue-500 bg-white">
-                                                    <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
-                                                </div>
-                                            );
-                                            
-                                            const d = addDays(parseISO(selectedCell.date), offset);
-                                            const k = formatDateKey(d);
-                                            // Get effective shift (Planner or Matrix)
-                                            const entry = getEntry(state, s.operator.id, k);
-                                            const matrixCode = calculateMatrixShift(s.operator, k, state.matrices);
-                                            const code = entry?.shiftCode || matrixCode || '';
-                                            const shiftType = state.shiftTypes.find(t => t.code === code);
-                                            const color = shiftType?.color || '#f1f5f9';
-                                            const textColor = getContrastColor(color);
-
-                                            return (
-                                                <div 
-                                                    key={i} 
-                                                    className="w-4 h-4 flex items-center justify-center text-[8px] font-bold rounded-sm border border-black/5"
-                                                    style={{ backgroundColor: color, color: textColor }}
-                                                    title={`${format(d, 'dd/MM')}: ${code || 'OFF'}`}
-                                                >
-                                                    {code ? code.substring(0,2) : ''}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                                <Button 
-                                    variant="secondary" 
-                                    className="px-3 py-1.5 text-xs whitespace-nowrap group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200"
-                                    onClick={() => handleAssignTo(s.operator.id)}
-                                    title="Assegna questo turno a questo operatore"
-                                >
-                                    <UserPlus size={14} className="inline md:mr-1" />
-                                    <span className="hidden md:inline">Assegna</span>
-                                </Button>
-                            </div>
-                        ))}
-                        {suggestions.length === 0 && <div className="text-center text-xs text-slate-400 py-2">Nessun altro operatore disponibile.</div>}
-                    </div>
-                 )}
-               </div>
-
-               <div className="flex gap-3 justify-end pt-2 border-t mt-2">
-                   {entry?.isManual && (
-                       <Button variant="ghost" onClick={handleResetCell} className="text-red-500 hover:bg-red-50 hover:text-red-700 mr-auto">
-                           <RotateCcw size={14} className="mr-1 inline" /> Ripristina Originale
-                       </Button>
-                   )}
-                   <Button variant="ghost" onClick={() => setEditMode(false)}>Annulla</Button>
-                   <Button variant="primary" onClick={saveChanges} className="px-6 shadow-md hover:shadow-lg transform active:scale-95 transition-all">
-                       <Save size={16} className="mr-2" />
-                       Salva Modifiche
+               {/* Footer Actions */}
+               <div className="flex justify-between items-center pt-4 border-t mt-4">
+                   <Button variant="ghost" className="text-red-500 hover:bg-red-50 hover:text-red-700" onClick={handleResetCell}>
+                        <Trash2 size={16} className="mr-1 inline" /> Rimuovi Turno
                    </Button>
+                   <div className="flex gap-2">
+                       <Button variant="ghost" onClick={() => { setEditMode(false); setSelectedCell(null); }}>Annulla</Button>
+                       <Button variant="primary" onClick={saveChanges}>
+                            <Save size={16} className="mr-1 inline" /> Conferma
+                       </Button>
+                   </div>
                </div>
+               
+               {/* Quick Assign Suggestions */}
+               {suggestions.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-slate-100 bg-slate-50/50 -mx-4 -mb-4 px-4 py-3 rounded-b-lg">
+                        <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase mb-2">
+                            <UserCheck size={14} /> Suggerimenti Copertura
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {suggestions.slice(0, 4).map(s => (
+                                <button 
+                                    key={s.operator.id} 
+                                    className="flex justify-between items-center bg-white p-2 rounded border border-slate-200 hover:border-blue-300 hover:shadow-sm transition-all text-left group"
+                                    onClick={() => handleAssignTo(s.operator.id)}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${s.score > 80 ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            {s.score}
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-medium text-slate-700 group-hover:text-blue-700">{s.operator.lastName} {s.operator.firstName}</div>
+                                            <div className="text-[10px] text-slate-500 truncate max-w-[120px]">
+                                                {s.reasons.join(', ')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <ArrowRight size={14} className="text-slate-300 group-hover:text-blue-500" />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+               )}
+
              </div>
            );
-        })()}
-      </Modal>
-
-      {/* Modal Matrix Assignment */}
-      <Modal isOpen={!!matrixAssignment} onClose={() => setMatrixAssignment(null)} title="Assegna Matrice Rapida">
-          {matrixAssignment && (() => {
-              const op = state.operators.find(o => o.id === matrixAssignment.opId);
-              const currentMatrix = state.matrices.find(m => m.id === op?.matrixId);
-              const hasExisting = !!op?.matrixId;
-
-              return (
-                  <div className="space-y-4">
-                      <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100 flex items-start gap-3">
-                          <CalendarClock className="text-indigo-600 shrink-0" size={20} />
-                          <div className="text-sm text-indigo-900">
-                              <p className="font-bold mb-1">Configura Rotazione per {op?.lastName}</p>
-                              <p>Stai impostando una nuova matrice a partire dal giorno: <br/><strong className="text-base">{format(parseISO(matrixAssignment.date), 'dd MMMM yyyy')}</strong>.</p>
-                          </div>
-                      </div>
-
-                      <div className="bg-amber-50 p-3 rounded border border-amber-200 text-xs text-amber-800 flex gap-2 items-center">
-                          <AlertTriangle size={16} className="shrink-0" />
-                          <span>
-                              Questa azione aggiungerà una nuova voce allo storico matrici e chiuderà automaticamente il periodo precedente (se esistente) al giorno prima della data selezionata.
-                          </span>
-                      </div>
-
-                      <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Seleziona Matrice</label>
-                          <Select 
-                              value={selectedMatrixId} 
-                              onChange={(e) => setSelectedMatrixId(e.target.value)}
-                              className="w-full"
-                          >
-                              <option value="">Seleziona...</option>
-                              {state.matrices.map(m => (
-                                  <option key={m.id} value={m.id}>{m.name} ({m.sequence.length} turni)</option>
-                              ))}
-                          </Select>
-                      </div>
-
-                      <div className="flex justify-end gap-2 pt-4 border-t">
-                          <Button variant="ghost" onClick={() => setMatrixAssignment(null)}>Annulla</Button>
-                          <Button 
-                            variant="primary" 
-                            disabled={!selectedMatrixId}
-                            onClick={handleConfirmMatrixAssignment}
-                          >
-                              Conferma Assegnazione
-                          </Button>
-                      </div>
-                  </div>
-              );
-          })()}
+        })()} 
       </Modal>
     </div>
   );
