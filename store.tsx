@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, useCallback, useRef } from 'react';
 import { AppState, CONSTANTS, Operator, ShiftType, Matrix, LogEntry, CallEntry, PlannerEntry, Assignment, AssignmentEntry, HistoryAwareState, DayNote } from './types';
 import { format } from 'date-fns';
 
@@ -151,6 +151,19 @@ const initialState: AppState = {
     googleScriptUrl: ''
   },
 };
+
+// --- List of Actions that constitute Data Modification ---
+const DATA_ACTIONS = new Set([
+  'UPDATE_CELL', 'REMOVE_CELL', 'BATCH_UPDATE', 
+  'UPDATE_ASSIGNMENT', 'REMOVE_ASSIGNMENT', 
+  'ADD_LOG', 'ADD_CALL', 'UPDATE_CONFIG', 
+  'ADD_OPERATOR', 'UPDATE_OPERATOR', 'DELETE_OPERATOR', 
+  'ADD_SHIFT', 'UPDATE_SHIFT', 'DELETE_SHIFT', 
+  'ADD_MATRIX', 'UPDATE_MATRIX', 'DELETE_MATRIX', 
+  'ADD_ASSIGNMENT_TYPE', 'UPDATE_ASSIGNMENT_TYPE', 'DELETE_ASSIGNMENT_TYPE', 
+  'UPDATE_DAY_NOTE', 'REORDER_OPERATORS',
+  'UNDO', 'REDO'
+]);
 
 // --- Actions ---
 type Action =
@@ -388,7 +401,7 @@ const AppContext = createContext<{
 });
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [historyState, dispatch] = useReducer(undoableReducer, {
+  const [historyState, dispatchOriginal] = useReducer(undoableReducer, {
     past: [],
     present: initialState,
     future: []
@@ -396,6 +409,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'SAVED' | 'ERROR' | 'UNAUTHORIZED'>('IDLE');
   const [accessCode, setAccessCode] = useState(() => localStorage.getItem('shiftmaster_access_code') || '');
+  
+  // Track number of significant modifications for auto-save logic
+  const mutationCountRef = useRef(0);
+
+  // Wrapper for dispatch to track significant data changes
+  const dispatch = useCallback((action: Action) => {
+      if (DATA_ACTIONS.has(action.type)) {
+          mutationCountRef.current += 1;
+      }
+      dispatchOriginal(action);
+  }, []);
 
   // Logic to fetch from cloud (Defined before checkAuth to use it)
   const syncFromCloud = useCallback(async (isAutoSync = false) => {
@@ -422,6 +446,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 // Always load on explicit sync (like initial load) or if cloud is newer
                 if (cloudTs > localTs || !isAutoSync) {
                      dispatch({ type: 'RESTORE_BACKUP', payload: cloudData });
+                     // Reset modification count on sync
+                     mutationCountRef.current = 0;
                      if (!isAutoSync) setSyncStatus('SAVED');
                 }
             } else {
@@ -436,7 +462,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.error("Cloud sync failed", e);
         if (!isAutoSync) setSyncStatus('ERROR');
     }
-  }, [accessCode]); // Removing historyState.present dependency to avoid loops
+  }, [accessCode, historyState.present.lastLogin, dispatch]); // Added dispatch dep
 
   const checkAuth = useCallback(async (codeToVerify: string) => {
       setAccessCode(codeToVerify);
@@ -459,6 +485,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               } else {
                   dispatch({ type: 'LOGIN_SUCCESS' });
               }
+              mutationCountRef.current = 0;
               setSyncStatus('SAVED');
           } else {
               // DB Error but auth ok
@@ -469,7 +496,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.error("Auth check failed", e);
           return false;
       }
-  }, []);
+  }, [dispatch]);
 
   // 1. Initial Load (if code exists in localStorage)
   useEffect(() => {
@@ -495,11 +522,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return () => window.removeEventListener("focus", handleFocus);
   }, [syncFromCloud, historyState.present.isAuthenticated]);
 
-  // 4. AUTO-SAVE: Triggered on ANY state change
+  // 4. AUTO-SAVE: Triggered on >= 2 DATA modifications
   useEffect(() => {
-    // Only save if authenticated and we have a valid lastLogin (prevents saving empty state over cloud state on boot)
+    // Only save if authenticated and we have a valid lastLogin
     if (historyState.present.isAuthenticated && historyState.present.lastLogin > 0) {
       
+      // Check threshold: Do not save if less than 2 significant changes
+      if (mutationCountRef.current < 2) {
+          return;
+      }
+
       setSyncStatus('SYNCING'); // Immediate feedback UI
 
       const timeoutId = setTimeout(() => {
@@ -519,6 +551,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   dispatch({ type: 'LOGOUT' });
               } else if(res.ok) {
                   setSyncStatus('SAVED');
+                  mutationCountRef.current = 0; // Reset counter only on successful save
               } else {
                   setSyncStatus('ERROR');
               }
