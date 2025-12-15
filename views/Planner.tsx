@@ -2,9 +2,9 @@ import React, { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { useApp } from '../store';
 import { getMonthDays, formatDateKey, getEntry, calculateMatrixShift, validateCell, getShiftByCode, getSuggestions, parseISO, isOperatorEmployed, getItalianHolidayName } from '../utils';
 import { format, isToday, isWeekend, addMonths, differenceInDays, addDays, isWithinInterval, isSameMonth, isSunday, isBefore } from 'date-fns';
-import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2, Send, Cloud, CloudOff, Loader2, CheckCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2, Send, Cloud, CloudOff, Loader2, CheckCircle, PartyPopper, Star, CheckCircle2, Users } from 'lucide-react';
 import { Button, Modal, Select, Input, Badge } from '../components/UI';
-import { PlannerEntry, ViewMode, ShiftType, SpecialEvent, CoverageConfig } from '../types';
+import { PlannerEntry, ViewMode, ShiftType, SpecialEvent, CoverageConfig, DayNote, DayNoteType } from '../types';
 import { OperatorDetailModal } from '../components/OperatorDetailModal';
 import { PrintLayout } from '../components/PrintLayout';
 import { TimesheetPrintLayout } from '../components/TimesheetPrintLayout';
@@ -24,6 +24,15 @@ type LastOperation = {
 };
 
 const ITALIAN_MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+
+const NOTE_TYPES: Record<DayNoteType, { icon: React.ElementType, color: string, label: string }> = {
+    INFO: { icon: StickyNote, color: 'text-amber-500', label: 'Nota' },
+    ALERT: { icon: AlertTriangle, color: 'text-red-500', label: 'Importante' },
+    EVENT: { icon: Star, color: 'text-blue-500', label: 'Evento' },
+    MEETING: { icon: Users, color: 'text-purple-500', label: 'Riunione' },
+    HOLIDAY: { icon: PartyPopper, color: 'text-pink-500', label: 'Festa' },
+    CHECK: { icon: CheckCircle2, color: 'text-emerald-500', label: 'Fatto' }
+};
 
 export const Planner = () => {
   const { state, dispatch, history, syncStatus } = useApp();
@@ -86,7 +95,7 @@ export const Planner = () => {
   const [tempNote, setTempNote] = useState('');
 
   // Day Note Modal State (Calendar Day)
-  const [editingDayNote, setEditingDayNote] = useState<{ date: string; text: string } | null>(null);
+  const [editingDayNote, setEditingDayNote] = useState<{ date: string; note: DayNote } | null>(null);
 
   // Multi-selection & Clipboard State
   const [multiSelection, setMultiSelection] = useState<{ opId: string, start: string, end: string } | null>(null);
@@ -333,7 +342,6 @@ export const Planner = () => {
     return calculateMatrixShift(op, date, state.matrices) || '';
   };
 
-  // ... (rest of helper functions remain unchanged)
   const getContrastColor = (hexColor?: string) => {
       if (!hexColor) return 'text-slate-700';
       const r = parseInt(hexColor.substring(1, 3), 16);
@@ -544,7 +552,6 @@ export const Planner = () => {
     setEditMode(false);
   };
 
-  // ... (rest of handlers remain unchanged, including Right Click, Drag Drop etc.)
   const handleRightClick = (e: React.MouseEvent, opId: string, date: string, isEmployed: boolean) => {
       e.preventDefault();
       
@@ -1111,15 +1118,32 @@ export const Planner = () => {
   };
 
   const handleOpenDayNote = (date: string) => {
-      const currentNote = state.dayNotes[date] || '';
-      setEditingDayNote({ date, text: currentNote });
+      const currentNote = state.dayNotes[date];
+      let noteObj: DayNote;
+      
+      if (typeof currentNote === 'string') {
+          noteObj = { text: currentNote, type: 'INFO' };
+      } else if (currentNote) {
+          noteObj = currentNote;
+      } else {
+          noteObj = { text: '', type: 'INFO' };
+      }
+      
+      setEditingDayNote({ date, note: noteObj });
   };
 
   const handleSaveDayNote = () => {
       if (!editingDayNote) return;
-      dispatch({ type: 'UPDATE_DAY_NOTE', payload: { date: editingDayNote.date, note: editingDayNote.text } });
+      dispatch({ type: 'UPDATE_DAY_NOTE', payload: { date: editingDayNote.date, note: editingDayNote.note } });
       setEditingDayNote(null);
   };
+
+  // Dedicated delete function to fix bug
+  const handleDeleteDayNote = () => {
+      if (!editingDayNote) return;
+      dispatch({ type: 'UPDATE_DAY_NOTE', payload: { date: editingDayNote.date, note: null } });
+      setEditingDayNote(null);
+  }
 
   // --- Render Cell ---
   const renderCell = (op: any, day: Date) => {
@@ -1394,6 +1418,7 @@ export const Planner = () => {
         `} 
         onClick={e => e.stopPropagation()}
       >
+        {/* ... Toolbar Content (omitted for brevity, no changes needed here) ... */}
         <div className="flex items-center gap-2 min-w-0">
             {/* Sync Indicator */}
             <div className="hidden lg:flex items-center mr-2 px-2 py-1 bg-slate-50 rounded border border-slate-200" title="Stato Cloud">
@@ -1548,7 +1573,7 @@ export const Planner = () => {
              <div className="min-w-max">
                 {/* Header inside scrollable area */}
                 <div className="flex shrink-0 h-10 bg-slate-100 border-b border-slate-300 shadow-sm z-30 sticky top-0">
-                    <div className="w-32 md:w-48 shrink-0 bg-slate-100 border-r border-slate-300 flex items-center pl-2 md:pl-4 font-bold text-slate-700 text-xs md:text-sm sticky left-0 z-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                    <div className="w-32 md:w-48 shrink-0 bg-slate-100 border-r border-slate-300 flex items-center pl-2 md:pl-4 font-bold text-slate-700 text-xs md:text-sm sticky left-0 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                         Operatore
                     </div>
                     <div className="w-[40px] md:w-[60px] shrink-0 flex items-center justify-center font-bold text-[10px] md:text-xs text-slate-600 border-r bg-slate-50 z-30 relative group">
@@ -1573,7 +1598,18 @@ export const Planner = () => {
                     </div>
                     {days.map(d => {
                         const dateKey = formatDateKey(d);
-                        const hasNote = !!state.dayNotes[dateKey];
+                        const rawNote = state.dayNotes[dateKey];
+                        const hasNote = !!rawNote;
+                        let noteType: DayNoteType = 'INFO';
+                        
+                        // Parse note type if available
+                        if (hasNote && typeof rawNote !== 'string') {
+                            noteType = rawNote.type;
+                        }
+
+                        const IconComponent = NOTE_TYPES[noteType].icon;
+                        const iconColor = NOTE_TYPES[noteType].color;
+
                         const isHovered = dateKey === hoveredDate;
                         const holidayName = getItalianHolidayName(d);
                         const isHol = !!holidayName;
@@ -1586,13 +1622,13 @@ export const Planner = () => {
                                className={`flex-1 min-w-[44px] md:min-w-0 flex flex-col items-center justify-center border-r border-slate-200 text-[10px] md:text-xs overflow-hidden relative cursor-pointer transition-colors group ${isWeekend(d) ? 'bg-slate-200 text-slate-800' : 'text-slate-600'} ${isToday(d) ? 'bg-blue-100 font-bold text-blue-700' : ''} ${!isSameMonth(d, parseISO(state.currentDate)) ? 'opacity-60 bg-slate-100' : ''} ${isHovered ? 'bg-blue-200/50' : 'hover:bg-blue-50'} ${isPast && highlightPast ? 'opacity-40 bg-slate-200 grayscale' : ''}`}
                                onClick={() => handleOpenDayNote(dateKey)}
                                onMouseEnter={() => setHoveredDate(dateKey)}
-                               title={hasNote ? `Nota: ${state.dayNotes[dateKey]}` : (isHol ? `Festività: ${holidayName}` : "Clicca per aggiungere una nota")}
+                               title={hasNote ? `Nota: ${typeof rawNote === 'string' ? rawNote : rawNote.text}` : (isHol ? `Festività: ${holidayName}` : "Clicca per aggiungere una nota")}
                           >
                             <span className={isHol ? 'text-red-600 font-bold' : ''}>{formatDayName(d)}</span>
                             <span className={`text-xs md:text-sm font-semibold ${isHol ? 'text-red-600' : ''}`}>{format(d, 'd')}</span>
                             {hasNote && (
-                                <div className="absolute top-0.5 right-0.5 text-amber-500">
-                                    <StickyNote size={10} className="fill-amber-500" />
+                                <div className={`absolute top-0.5 right-0.5 ${iconColor}`}>
+                                    <IconComponent size={10} className={`fill-current ${noteType === 'INFO' ? 'fill-current' : ''}`} />
                                 </div>
                             )}
                           </div>
@@ -1602,7 +1638,7 @@ export const Planner = () => {
 
                 {/* Coverage Summary Row */}
                 <div className={`flex shrink-0 bg-slate-100 border-b border-slate-300 shadow-sm z-20 transition-all duration-300 ${showCoverageDetails ? 'h-20' : 'h-8'}`}>
-                    <div className="w-32 md:w-48 shrink-0 bg-slate-100 border-r border-slate-300 p-2 text-[10px] md:text-xs font-bold flex items-center justify-between cursor-pointer hover:bg-blue-50 hover:text-blue-700 transition-colors group sticky left-0 z-40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"
+                    <div className="w-32 md:w-48 shrink-0 bg-slate-100 border-r border-slate-300 p-2 text-[10px] md:text-xs font-bold flex items-center justify-between cursor-pointer hover:bg-blue-50 hover:text-blue-700 transition-colors group sticky left-0 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"
                         onClick={() => setShowCoverageDetails(!showCoverageDetails)}
                         title={showCoverageDetails ? "Comprimi dettagli" : "Espandi dettagli copertura"}
                     >
@@ -1822,166 +1858,16 @@ export const Planner = () => {
           </div>
       </div>
 
-      {/* ... (Tooltip, Modals, etc. remain unchanged below) ... */}
-      {/* Tooltip Details Popover */}
-      {selectedCell && !editMode && tooltipPos && (() => {
-          const entry = getEntry(state, selectedCell.opId, selectedCell.date);
-          const matrixShift = calculateMatrixShift(state.operators.find(o => o.id === selectedCell.opId)!, selectedCell.date, state.matrices);
-          const activeCode = entry?.shiftCode || matrixShift || '';
-          const shift = getShiftByCode(activeCode, state.shiftTypes);
-          const op = state.operators.find(o => o.id === selectedCell.opId);
-          const originalMatrixCode = calculateMatrixShift(state.operators.find(o => o.id === selectedCell.opId)!, selectedCell.date, state.matrices);
-          const hasChangedFromMatrix = originalMatrixCode && originalMatrixCode !== activeCode;
-          const specialEvents = entry?.specialEvents || [];
-          
-          // Calculate summary of special hours
-          const totalSpecialHours = specialEvents.reduce((acc, curr) => {
-              // Usually we just sum them for display, but distinction is nice
-              return acc + curr.hours;
-          }, 0);
-
-          return (
-            <div 
-                className="fixed z-50 bg-slate-800 text-white rounded-lg shadow-2xl w-64 p-4 transform -translate-x-1/2 transition-all duration-200 ease-out animate-in fade-in zoom-in-95 backdrop-blur-sm bg-opacity-95 no-print"
-                style={{ 
-                    top: tooltipPos.y, 
-                    left: tooltipPos.x,
-                    transform: tooltipPos.isBottom ? 'translate(-50%, -100%)' : 'translate(-50%, 0)'
-                }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="flex justify-between items-start mb-3 border-b border-slate-600 pb-2">
-                    <div>
-                        <div className="font-bold text-sm">{op?.lastName} {op?.firstName}</div>
-                        <div className="text-xs text-slate-400">{format(parseISO(selectedCell.date), 'EEEE, d MMM yyyy')}</div>
-                    </div>
-                    {entry?.isManual && <span className="bg-amber-500 text-slate-900 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Manuale</span>}
-                </div>
-
-                <div className="space-y-2 text-sm">
-                    {/* Main Shift Info */}
-                    <div className="flex justify-between items-center">
-                        <span className="text-slate-400">Turno Base:</span>
-                        {activeCode ? (
-                            <span className="font-mono font-bold px-2 py-0.5 rounded bg-slate-700">{activeCode} - {shift?.name || 'Sconosciuto'}</span>
-                        ) : (
-                            <span className="text-slate-500 italic">Vuoto</span>
-                        )}
-                    </div>
-                    
-                    {shift && (
-                        <div className="flex justify-between text-xs text-slate-400">
-                            <span>Ore Previste:</span>
-                            <span>{shift.hours}h {shift.isNight ? '(Notte)' : ''}</span>
-                        </div>
-                    )}
-
-                    {/* Standard Variations (Manual Override of main hours) */}
-                    {(entry?.variationReason || (entry?.customHours !== undefined && entry.customHours !== shift?.hours)) && (
-                        <div className="mt-2 pt-2 border-t border-slate-700">
-                             <div className="text-[10px] uppercase text-amber-500 font-bold mb-1">Variazione Orario</div>
-                             <div className="flex justify-between items-center bg-amber-950/30 p-1.5 rounded border border-amber-500/30">
-                                 <span className="text-amber-400 text-xs font-bold">{entry?.variationReason || 'Manuale'}</span>
-                                 <span className="font-mono font-bold text-amber-200">{entry?.customHours}h</span>
-                             </div>
-                        </div>
-                    )}
-                    
-                    {/* Special Events Section - Redesigned for Clarity */}
-                    {specialEvents.length > 0 && (
-                        <div className="mt-3 pt-2 border-t border-slate-600">
-                            <div className="flex justify-between items-center mb-1">
-                                <span className="text-[10px] uppercase text-indigo-300 font-bold">Voci Speciali & Extra</span>
-                                {specialEvents.length > 1 && (
-                                    <span className="text-[10px] font-bold text-indigo-200 bg-indigo-900/50 px-1 rounded">
-                                        Tot: {totalSpecialHours > 0 ? '+' : ''}{totalSpecialHours}h
-                                    </span>
-                                )}
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                                {specialEvents.map((ev, i) => (
-                                    <div key={ev.id || i} className="flex justify-between items-center bg-slate-200 p-1.5 rounded border border-slate-300 text-slate-800 shadow-sm">
-                                        <div className="flex flex-col leading-tight">
-                                            <div className="flex items-center gap-1">
-                                                <span className="font-bold text-xs text-slate-900">{ev.type || 'Voce Speciale'}</span>
-                                                {ev.mode === 'SUBSTITUTIVE' && <span className="text-[9px] text-slate-500">(Sost.)</span>}
-                                            </div>
-                                            {(ev.startTime || ev.endTime) ? (
-                                                <span className="text-[10px] text-slate-600 font-mono mt-0.5">
-                                                    {ev.startTime || '--:--'} - {ev.endTime || '--:--'}
-                                                </span>
-                                            ) : null}
-                                        </div>
-                                        <div className="shrink-0 ml-2">
-                                            <Badge color={ev.hours > 0 ? (ev.mode === 'SUBSTITUTIVE' ? 'bg-slate-500 text-white' : 'bg-indigo-600 text-white') : ev.hours < 0 ? 'bg-amber-600 text-white' : 'bg-emerald-600 text-white'}>
-                                                {ev.hours !== 0 ? `${ev.hours > 0 && ev.mode !== 'SUBSTITUTIVE' ? '+' : ''}${ev.hours}h` : 'Forfait'}
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    
-                    {/* Matrix Diff Info */}
-                    {hasChangedFromMatrix && (
-                        <div className="mt-2 pt-2 border-t border-slate-700">
-                             <div className="flex justify-between items-center text-[10px] text-slate-500">
-                                 <span>Originale da Matrice:</span>
-                                 <span className="font-mono font-bold text-slate-400">{originalMatrixCode}</span>
-                             </div>
-                        </div>
-                    )}
-
-                    {entry?.note && (
-                        <div className="bg-slate-700/50 p-2 rounded text-xs italic border-l-2 border-amber-500 mt-2">
-                           "{entry.note}"
-                        </div>
-                    )}
-                    
-                    {entry?.violation && (
-                        <div className="flex items-start gap-2 text-red-300 text-xs font-bold mt-2 bg-red-900/20 p-2 rounded border border-red-900/50">
-                            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                            <span>{entry.violation}</span>
-                        </div>
-                    )}
-                </div>
-
-                <div className="mt-4 flex gap-2 justify-end">
-                    <button onClick={clearSelection} className="px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors">Chiudi</button>
-                    {!isMatrixView && (
-                        <button 
-                            onClick={() => setEditMode(true)} 
-                            className="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded shadow-sm flex items-center gap-1.5 transition-colors"
-                        >
-                            <Edit2 size={12} /> Modifica
-                        </button>
-                    )}
-                </div>
-                
-                <div 
-                    className={`absolute left-1/2 -ml-2 w-4 h-4 bg-slate-800 transform rotate-45 ${tooltipPos.isBottom ? '-bottom-2' : '-top-2'}`}
-                />
-            </div>
-          );
-      })()}
-
-      {/* Operator Details Modal */}
-      {detailsOpId && (
-          <OperatorDetailModal 
-            isOpen={!!detailsOpId} 
-            onClose={() => setDetailsOpId(null)} 
-            operatorId={detailsOpId} 
-          />
-      )}
-
+      {/* ... (Tooltip, Modals, etc. below) ... */}
+      
       {/* Quick Note Modal */}
       <Modal isOpen={!!noteOpId} onClose={() => setNoteOpId(null)} title="Annotazioni Operatore">
+          {/* ... (Previous operator note modal content) ... */}
           <div className="space-y-4">
               <div className="bg-amber-50 p-3 rounded border border-amber-200 text-xs text-amber-800 flex gap-2">
                   <StickyNote size={16} className="shrink-0" />
                   <span>
-                      Inserisci qui richieste specifiche, note di servizio o promemoria per questo operatore (es. "Richiesto riposo il 15/10").
+                      Inserisci qui richieste specifiche, note di servizio o promemoria per questo operatore.
                   </span>
               </div>
               <textarea 
@@ -1997,7 +1883,7 @@ export const Planner = () => {
           </div>
       </Modal>
 
-      {/* Day Note Modal */}
+      {/* Day Note Modal - UPDATED */}
       <Modal isOpen={!!editingDayNote} onClose={() => setEditingDayNote(null)} title="Nota del Giorno">
           {editingDayNote && (
               <div className="space-y-4">
@@ -2011,13 +1897,34 @@ export const Planner = () => {
                       </div>
                   </div>
                   
+                  {/* Icon Selector */}
                   <div>
-                      <label className="block text-xs font-medium text-slate-500 uppercase mb-2">Promemoria / Nota</label>
+                      <label className="block text-xs font-medium text-slate-500 uppercase mb-2">Tipo Nota</label>
+                      <div className="grid grid-cols-3 gap-2">
+                          {(Object.entries(NOTE_TYPES) as [DayNoteType, typeof NOTE_TYPES[DayNoteType]][]).map(([type, config]) => {
+                              const Icon = config.icon;
+                              const isSelected = editingDayNote.note.type === type;
+                              return (
+                                  <button
+                                      key={type}
+                                      onClick={() => setEditingDayNote({ ...editingDayNote, note: { ...editingDayNote.note, type } })}
+                                      className={`flex flex-col items-center justify-center p-2 rounded border transition-all ${isSelected ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-300' : 'border-slate-200 hover:bg-slate-50 text-slate-500'}`}
+                                  >
+                                      <Icon size={20} className={`mb-1 ${config.color}`} />
+                                      <span className="text-[10px] font-bold">{config.label}</span>
+                                  </button>
+                              );
+                          })}
+                      </div>
+                  </div>
+
+                  <div>
+                      <label className="block text-xs font-medium text-slate-500 uppercase mb-2">Contenuto</label>
                       <textarea 
                           className="w-full h-32 p-3 border border-amber-300 bg-amber-50 rounded-md text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-800 placeholder-amber-800/40"
                           placeholder="Scrivi un promemoria per questa giornata (es. Festa Patronale, Riunione...)"
-                          value={editingDayNote.text}
-                          onChange={(e) => setEditingDayNote({ ...editingDayNote, text: e.target.value })}
+                          value={editingDayNote.note.text}
+                          onChange={(e) => setEditingDayNote({ ...editingDayNote, note: { ...editingDayNote.note, text: e.target.value } })}
                       />
                   </div>
 
@@ -2025,7 +1932,7 @@ export const Planner = () => {
                       <Button 
                         variant="ghost" 
                         className="text-red-500 hover:bg-red-50 hover:text-red-700"
-                        onClick={() => { setEditingDayNote({ ...editingDayNote, text: '' }); setTimeout(handleSaveDayNote, 0); }}
+                        onClick={handleDeleteDayNote} // Using the dedicated delete function
                       >
                           <Trash2 size={16} className="mr-2 inline" /> Elimina Nota
                       </Button>
@@ -2357,6 +2264,14 @@ export const Planner = () => {
            );
         })()} 
       </Modal>
+      {/* Detail Modal Component */}
+      {detailsOpId && (
+          <OperatorDetailModal 
+            isOpen={!!detailsOpId} 
+            onClose={() => setDetailsOpId(null)} 
+            operatorId={detailsOpId} 
+          />
+      )}
     </div>
   );
 };

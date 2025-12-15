@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useCallback } from 'react';
-import { AppState, CONSTANTS, Operator, ShiftType, Matrix, LogEntry, CallEntry, PlannerEntry, Assignment, AssignmentEntry, HistoryAwareState } from './types';
+import { AppState, CONSTANTS, Operator, ShiftType, Matrix, LogEntry, CallEntry, PlannerEntry, Assignment, AssignmentEntry, HistoryAwareState, DayNote } from './types';
 import { format } from 'date-fns';
 
 // --- Stato Iniziale ---
@@ -9,6 +9,10 @@ const initialState: AppState = {
   isAuthenticated: false, // Default false per richiedere login
   lastLogin: Date.now(),
   currentDate: format(new Date(), 'yyyy-MM-01'),
+  
+  // --- DATI INIZIALI: VUOTI (DATI DEMO NASCOSTI/ARCHIVIATI) ---
+  operators: [],
+  /* [BACKUP DATI DEMO - SCOMMENTARE PER RIPRISTINARE]
   operators: [
     { id: '1', firstName: 'Lara', lastName: 'BUZZARELLO', isActive: true, notes: '', contracts: generateDefaultContract('1'), matrixHistory: [], order: 1 },
     { id: '2', firstName: 'Alessandra', lastName: 'CERESER', isActive: true, notes: '', contracts: generateDefaultContract('2'), matrixHistory: [], order: 2 },
@@ -32,6 +36,10 @@ const initialState: AppState = {
     { id: '20', firstName: '-', lastName: 'OULY', isActive: true, notes: '', contracts: generateDefaultContract('20'), matrixHistory: [], order: 20 },
     { id: '21', firstName: 'Daniela', lastName: 'GRECO', isActive: true, notes: '', contracts: generateDefaultContract('21'), matrixHistory: [], order: 21 },
   ],
+  */
+
+  shiftTypes: [],
+  /* [BACKUP DATI DEMO]
   shiftTypes: [
     // Mattina (Verdi)
     { id: 'm6', code: 'M6', name: 'Mattino (08:00-14:00)', color: '#bcdfc3', hours: 6, isNight: false, isWeekend: false },
@@ -62,11 +70,19 @@ const initialState: AppState = {
     { id: 'mal', code: 'MAL', name: 'Malattia', color: '#ff0000', hours: 0, isNight: false, isWeekend: false, inheritsHours: true }, // Rosso
     { id: 'a', code: 'A', name: 'Assenza', color: '#827d7d', hours: 0, isNight: false, isWeekend: false }
   ],
+  */
+
+  assignments: [],
+  /* [BACKUP DATI DEMO]
   assignments: [
     { id: 'rubino', code: 'Rubino', name: '5° Unità Saletta', color: '#ef4444' },
     { id: 'turchese', code: 'Turchese', name: '3° Unità Saletta', color: '#06b6d4' },
     { id: 'ambra', code: 'Ambra', name: 'Piano terra 16-17', color: '#f59e0b' },
   ],
+  */
+
+  matrices: [],
+  /* [BACKUP DATI DEMO]
   matrices: [
     {
       id: 'm1',
@@ -107,6 +123,8 @@ const initialState: AppState = {
       ]
     }
   ],
+  */
+
   plannerData: {},
   assignmentData: {},
   dayNotes: {}, 
@@ -116,11 +134,14 @@ const initialState: AppState = {
   config: {
     minRestHours: 11,
     maxConsecutiveDays: 6,
+    coverage: {},
+    /* [BACKUP CONFIGURAZIONE COPERTURA]
     coverage: {
       'M8': { min: 2, optimal: 3 },
       'P': { min: 2, optimal: 3 },
       'N': { min: 1, optimal: 2 },
     },
+    */
     ai: {
         enabled: false,
         provider: 'OLLAMA',
@@ -155,7 +176,7 @@ type Action =
   | { type: 'ADD_ASSIGNMENT_TYPE'; payload: Assignment }
   | { type: 'UPDATE_ASSIGNMENT_TYPE'; payload: Assignment }
   | { type: 'DELETE_ASSIGNMENT_TYPE'; payload: string }
-  | { type: 'UPDATE_DAY_NOTE'; payload: { date: string; note: string } }
+  | { type: 'UPDATE_DAY_NOTE'; payload: { date: string; note: DayNote | string | null } }
   | { type: 'REORDER_OPERATORS'; payload: Operator[] }
   | { type: 'LOGIN_SUCCESS' }
   | { type: 'LOGOUT' }

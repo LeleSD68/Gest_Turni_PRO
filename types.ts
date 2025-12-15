@@ -135,6 +135,13 @@ export interface AIConfig {
   model: string; // e.g. llama3
 }
 
+export type DayNoteType = 'INFO' | 'ALERT' | 'EVENT' | 'MEETING' | 'HOLIDAY' | 'CHECK';
+
+export interface DayNote {
+    text: string;
+    type: DayNoteType;
+}
+
 export interface AppState {
   isAuthenticated: boolean;
   lastLogin: number;
@@ -145,7 +152,7 @@ export interface AppState {
   assignments: Assignment[];
   plannerData: Record<string, PlannerEntry>; // key: operatorId_date
   assignmentData: Record<string, AssignmentEntry>; // key: operatorId_date
-  dayNotes: Record<string, string>; // key: date (YYYY-MM-DD), value: note content
+  dayNotes: Record<string, DayNote | string>; // key: date (YYYY-MM-DD), value: note content (string or object)
   logs: LogEntry[];
   calls: CallEntry[];
   matrixSwaps: MatrixSwap[];
