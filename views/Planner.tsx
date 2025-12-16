@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { useApp } from '../store';
 import { getMonthDays, formatDateKey, getEntry, calculateMatrixShift, validateCell, getShiftByCode, getSuggestions, parseISO, isOperatorEmployed, getItalianHolidayName, startOfMonth, startOfWeek, endOfWeek, subWeeks, addWeeks, endOfMonth } from '../utils';
 import { format, isToday, isWeekend, addMonths, differenceInDays, addDays, isWithinInterval, isSameMonth, isSunday, isBefore, eachDayOfInterval } from 'date-fns';
+import it from 'date-fns/locale/it';
 import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2, Send, Cloud, CloudOff, Loader2, CheckCircle, PartyPopper, Star, CheckCircle2, Users, FileClock, Calendar, Grid, Columns, Briefcase } from 'lucide-react';
 import { Button, Modal, Select, Input, Badge } from '../components/UI';
 import { PlannerEntry, ViewMode, ShiftType, SpecialEvent, CoverageConfig, DayNote, DayNoteType } from '../types';
@@ -24,6 +25,7 @@ type LastOperation = {
 };
 
 const ITALIAN_MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+const ITALIAN_DAY_INITIALS = ['D', 'L', 'M', 'M', 'G', 'V', 'S'];
 
 const NOTE_TYPES: Record<DayNoteType, { icon: React.ElementType, color: string, label: string }> = {
     INFO: { icon: StickyNote, color: 'text-amber-500', label: 'Nota' },
@@ -47,6 +49,7 @@ export const Planner = () => {
   const [selectedCell, setSelectedCell] = useState<{ opId: string; date: string } | null>(null);
   const [showCellReport, setShowCellReport] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [isBulkEdit, setIsBulkEdit] = useState(false); // New State for Bulk Edit via Modal
   const [showPrevDays, setShowPrevDays] = useState(false);
   const [groupByMatrix, setGroupByMatrix] = useState(true);
   const [highlightPast, setHighlightPast] = useState(false);
@@ -138,7 +141,7 @@ export const Planner = () => {
   const [newSpecialStart, setNewSpecialStart] = useState('');
   const [newSpecialEnd, setNewSpecialEnd] = useState('');
   const [newSpecialHours, setNewSpecialHours] = useState<number | ''>('');
-  const [newSpecialMode, setNewSpecialMode] = useState<'ADDITIVE' | 'SUBSTITUTIVE'>('ADDITIVE');
+  const [newSpecialMode, setNewSpecialMode] = useState<'ADDITIVE' | 'SUBTRACTIVE' | 'SUBSTITUTIVE'>('ADDITIVE');
   const [isSpecialMode, setIsSpecialMode] = useState(false);
 
   // --- Derived Data ---
@@ -280,7 +283,6 @@ export const Planner = () => {
       return parseFloat(diff.toFixed(2));
   };
 
-  // --- Effects ---
   useEffect(() => {
     if ((editMode || showCellReport) && selectedCell) {
         const entry = getEntry(state, selectedCell.opId, selectedCell.date);
@@ -299,6 +301,7 @@ export const Planner = () => {
         setNewSpecialStart('');
         setNewSpecialEnd('');
         setNewSpecialMode('ADDITIVE');
+        setNewSpecialType('Straordinario');
         setShowSuggest(false);
     }
   }, [editMode, showCellReport, selectedCell, state]);
@@ -358,6 +361,7 @@ export const Planner = () => {
     setMultiSelection(null);
     setCellPopupPosition(null);
     setMultiSelectPopupPosition(null);
+    setIsBulkEdit(false);
   };
 
   const handlePrev = () => {
@@ -393,7 +397,6 @@ export const Planner = () => {
           const startFormat = isSameMonth(start, end) ? 'd' : 'd MMM';
           return `${format(start, startFormat)} - ${format(end, 'd MMM yyyy')}`;
       }
-      // ITALIAN MONTH NAME
       return `${ITALIAN_MONTHS[date.getMonth()]} ${date.getFullYear()}`;
   };
 
@@ -406,9 +409,6 @@ export const Planner = () => {
     setDraggingCell({ opId, date });
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', JSON.stringify({ opId, date }));
-    
-    // Create a custom drag image or use default. 
-    // Default is usually fine, but sometimes transparency helps.
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -418,7 +418,6 @@ export const Planner = () => {
 
   const handleCellDragEnter = (opId: string, date: string, isEmployed: boolean) => {
       if (draggingCell && isEmployed) {
-          // Only update if changed to avoid renders
           if (dragOverCell?.opId !== opId || dragOverCell?.date !== date) {
               setDragOverCell({ opId, date });
           }
@@ -656,13 +655,14 @@ export const Planner = () => {
               // Delete Manual Entry
               removeList.push({ operatorId: opId, date: dateKey });
           } else {
-             // Logic: If shift is Ferie (F or FE) AND it's Sunday, assign R instead
+             // Logic: If shift is Ferie (FE) AND it's Sunday, assign R instead
              let codeToAssign = shiftCode;
-             if ((codeToAssign === 'F' || codeToAssign === 'FE') && isSunday(d)) {
+             // IMPORTANT: Explicitly handle FE -> R on Sunday logic here as well
+             if (codeToAssign === 'FE' && isSunday(d)) {
                  codeToAssign = 'R';
              }
 
-             // Assign specific shift
+             // Assign specific shift (or empty string if shiftCode is '')
              const violation = validateCell(state, opId, dateKey, codeToAssign);
              updates.push({
                   operatorId: opId,
@@ -682,6 +682,8 @@ export const Planner = () => {
           dispatch({ type: 'BATCH_UPDATE', payload: updates });
       }
 
+      const logMsg = shiftCode === 'RESET' ? 'Ripristino Matrice (Multi)' : (shiftCode === '' ? 'Svuota Cella (Multi)' : `Assegnazione Multipla (${shiftCode})`);
+
       dispatch({
           type: 'ADD_LOG',
           payload: {
@@ -689,7 +691,7 @@ export const Planner = () => {
               timestamp: Date.now(),
               operatorId: opId,
               actionType: 'UPDATE',
-              reason: shiftCode === 'RESET' ? 'Ripristino Matrice (Multi)' : `Assegnazione Multipla (${shiftCode})`,
+              reason: logMsg,
               user: 'CurrentUser',
               targetDate: start
           }
@@ -1028,53 +1030,71 @@ export const Planner = () => {
   const saveChanges = () => {
       if (!selectedCell) return;
       
-      let finalSpecialEvents = [...draftSpecialEvents];
-
-      if (isSpecialMode && (newSpecialHours !== '' || (newSpecialStart && newSpecialEnd))) {
-          const hours = typeof newSpecialHours === 'number' ? newSpecialHours : 0;
-          const pendingEvent: SpecialEvent = {
-              id: crypto.randomUUID(),
-              type: newSpecialType,
-              startTime: newSpecialStart,
-              endTime: newSpecialEnd,
-              hours: hours,
-              mode: newSpecialMode
-          };
-          finalSpecialEvents.push(pendingEvent);
+      // Determine targets: Single cell or Bulk Range
+      const targets: string[] = [];
+      if (isBulkEdit && multiSelection && multiSelection.opId === selectedCell.opId) {
+          const range = eachDayOfInterval({ start: parseISO(multiSelection.start), end: parseISO(multiSelection.end) });
+          targets.push(...range.map(d => formatDateKey(d)));
+      } else {
+          targets.push(selectedCell.date);
       }
 
-      let codeToApply = draftShift;
-      if (codeToApply && codeToApply.startsWith('F') && isSunday(parseISO(selectedCell.date))) {
-          codeToApply = 'R';
-      }
+      const updates: PlannerEntry[] = [];
+      const removeList: { operatorId: string, date: string }[] = [];
 
-      const violation = validateCell(state, selectedCell.opId, selectedCell.date, codeToApply);
-      const newEntry: PlannerEntry = {
-          operatorId: selectedCell.opId,
-          date: selectedCell.date,
-          shiftCode: codeToApply,
-          note: draftNote,
-          isManual: true,
-          violation: violation || undefined,
-          variationReason: draftVariationReason || undefined,
-          customHours: draftCustomHours,
-          specialEvents: finalSpecialEvents
-      };
-      
-      if (draftShift) {
-          setLastOperation({
-              type: 'UPDATE',
-              shiftCode: draftShift, 
+      targets.forEach(dateTarget => {
+          if (!draftShift && !draftNote && !isSpecialMode) {
+              // If completely empty draft (delete action)
+              removeList.push({ operatorId: selectedCell.opId, date: dateTarget });
+              return;
+          }
+
+          let finalSpecialEvents = [...draftSpecialEvents];
+
+          if (isSpecialMode && (newSpecialHours !== '' || (newSpecialStart && newSpecialEnd))) {
+              const hours = typeof newSpecialHours === 'number' ? newSpecialHours : 0;
+              const pendingEvent: SpecialEvent = {
+                  id: crypto.randomUUID(),
+                  type: newSpecialType,
+                  startTime: newSpecialStart,
+                  endTime: newSpecialEnd,
+                  hours: hours,
+                  mode: newSpecialMode
+              };
+              finalSpecialEvents.push(pendingEvent);
+          }
+
+          let codeToApply = draftShift;
+          // Apply FE -> R Logic for Sunday (Bulk or Single)
+          if (codeToApply === 'FE' && isSunday(parseISO(dateTarget))) {
+              codeToApply = 'R';
+          }
+          if (codeToApply && codeToApply.startsWith('F') && isSunday(parseISO(dateTarget)) && codeToApply !== 'FE') {
+              codeToApply = 'R'; // Generic fallback for other F types if any
+          }
+
+          const violation = validateCell(state, selectedCell.opId, dateTarget, codeToApply);
+          
+          updates.push({
+              operatorId: selectedCell.opId,
+              date: dateTarget,
+              shiftCode: codeToApply,
               note: draftNote,
-              variationReason: draftVariationReason,
+              isManual: true,
+              violation: violation || undefined,
+              variationReason: draftVariationReason || undefined,
               customHours: draftCustomHours,
               specialEvents: finalSpecialEvents
           });
-      } else {
-          setLastOperation({ type: 'DELETE' });
+      });
+
+      if (removeList.length > 0) {
+          removeList.forEach(item => dispatch({ type: 'REMOVE_CELL', payload: item }));
       }
 
-      dispatch({ type: 'UPDATE_CELL', payload: newEntry });
+      if (updates.length > 0) {
+          dispatch({ type: 'BATCH_UPDATE', payload: updates });
+      }
       
       dispatch({
           type: 'ADD_LOG',
@@ -1084,11 +1104,25 @@ export const Planner = () => {
               operatorId: selectedCell.opId,
               actionType: 'UPDATE',
               newValue: draftShift,
-              reason: draftNote || 'Modifica Manuale',
+              reason: isBulkEdit ? `Modifica Massiva (${targets.length} gg)` : (draftNote || 'Modifica Manuale'),
               user: 'CurrentUser',
               targetDate: selectedCell.date
           }
       });
+
+      // Update Last Operation for Right Click
+      if (draftShift) {
+          setLastOperation({
+              type: 'UPDATE',
+              shiftCode: draftShift, 
+              note: draftNote,
+              variationReason: draftVariationReason,
+              customHours: draftCustomHours,
+              specialEvents: draftSpecialEvents // Careful with IDs here if reused, but OK for copy
+          });
+      } else {
+          setLastOperation({ type: 'DELETE' });
+      }
 
       clearSelection();
   };
@@ -1256,15 +1290,16 @@ export const Planner = () => {
         style={{ 
             backgroundColor: (isDragOver ? undefined : (violation ? '#fee2e2' : (shiftType ? shiftType.color : undefined))),
             opacity: isGhost ? 0.5 : 1,
-            borderColor: isConnectedRight && shiftType ? shiftType.color : undefined
+            borderColor: isConnectedRight && shiftType ? shiftType.color : undefined,
+            filter: !isCurrentMonth && viewSpan === 'MONTH' ? 'grayscale(100%) opacity(0.6)' : undefined
         }}
         className={`
-          flex-1 min-w-[44px] md:min-w-0 border-r border-b border-slate-200 text-xs md:text-sm flex items-center justify-center relative transition-all h-10 md:h-8
+          flex-1 min-w-[44px] md:min-w-0 border-r border-slate-300 border-b border-slate-100 text-xs md:text-sm flex items-center justify-center relative transition-all h-10 md:h-8
           ${!isCurrentMonth && viewSpan === 'MONTH' ? 'bg-slate-100/50 text-slate-400' : isToday(day) ? 'bg-slate-50' : ''}
           ${isHol ? 'bg-slate-200/40' : ''}
           ${isPast && highlightPast ? 'opacity-30 grayscale bg-slate-100' : ''}
           ${isSelected ? 'ring-4 ring-violet-600 ring-offset-2 ring-offset-white z-50 shadow-2xl scale-105 opacity-100 grayscale-0' : ''}
-          ${isMultiSelected ? 'ring-inset ring-2 ring-indigo-400 bg-indigo-50/50' : ''}
+          ${isMultiSelected ? 'ring-inset ring-2 ring-blue-600 bg-blue-300/60 z-20' : ''}
           ${isPendingTarget ? 'ring-2 ring-dashed ring-blue-500 z-20' : ''}
           ${isDragging ? 'opacity-40 scale-90 ring-2 ring-slate-400' : ''}
           ${dropFeedbackClass}
@@ -1523,7 +1558,7 @@ export const Planner = () => {
            {multiSelection && (
                <>
                 <Button variant="primary" onClick={handleCopySelection} title="Copia"><Copy size={16} /></Button>
-                <Button variant="secondary" onClick={() => setShowBulkModal(true)} title="Assegna"><Layers size={16} /></Button>
+                <Button variant="secondary" onClick={() => { setShowBulkModal(true); setMultiSelectPopupPosition(null); }} title="Assegna"><Layers size={16} /></Button>
                </>
            )}
            {clipboard && selectedCell && (
@@ -1566,28 +1601,26 @@ export const Planner = () => {
                     </div>
                     {days.map(d => {
                         const dateKey = formatDateKey(d);
-                        const rawNote = state.dayNotes[dateKey];
-                        const hasNote = !!rawNote;
-                        let noteType: DayNoteType = 'INFO';
-                        if (hasNote && typeof rawNote !== 'string') noteType = rawNote.type;
-                        const IconComponent = NOTE_TYPES[noteType].icon;
-                        const iconColor = NOTE_TYPES[noteType].color;
-                        const isHovered = dateKey === hoveredDate;
-                        const holidayName = getItalianHolidayName(d);
-                        const isHol = !!holidayName;
+                        const isHol = !!getItalianHolidayName(d);
                         const isPast = isBefore(d, new Date(new Date().setHours(0,0,0,0)));
+                        const isHovered = dateKey === hoveredDate;
+                        const isCurrentMonth = isSameMonth(d, parseISO(state.currentDate));
 
                         return (
                           <div 
                                key={d.toString()} 
                                id={`day-header-${dateKey}`}
-                               className={`flex-1 min-w-[44px] md:min-w-0 flex flex-col items-center justify-center border-r border-slate-200 text-[10px] md:text-xs overflow-hidden relative cursor-pointer transition-colors group ${isWeekend(d) ? 'bg-slate-200 text-slate-800' : 'text-slate-600'} ${isToday(d) ? 'bg-blue-100 font-bold text-blue-700' : ''} ${!isSameMonth(d, parseISO(state.currentDate)) && viewSpan === 'MONTH' ? 'opacity-60 bg-slate-100' : ''} ${isHovered ? 'bg-blue-200/50' : 'hover:bg-blue-50'} ${isPast && highlightPast ? 'opacity-40 bg-slate-200 grayscale' : ''}`}
+                               className={`flex-1 min-w-[44px] md:min-w-0 flex flex-col items-center justify-center border-r border-slate-300 text-[10px] md:text-xs overflow-hidden relative cursor-pointer transition-colors group 
+                               ${isWeekend(d) ? 'bg-slate-200 text-slate-800' : 'text-slate-600'} 
+                               ${isToday(d) ? 'bg-blue-100 font-bold text-blue-700' : ''} 
+                               ${!isCurrentMonth && viewSpan === 'MONTH' ? 'bg-slate-100 opacity-60 grayscale' : ''} 
+                               ${isHovered ? 'bg-blue-200/50' : 'hover:bg-blue-50'} 
+                               ${isPast && highlightPast ? 'opacity-40 bg-slate-200 grayscale' : ''}`}
                                onClick={() => handleOpenDayNote(dateKey)}
                                onMouseEnter={() => setHoveredDate(dateKey)}
                           >
-                            <span className={isHol ? 'text-red-600 font-bold' : ''}>{format(d, 'EEEE').substring(0, 1).toUpperCase()}</span>
+                            <span className={isHol ? 'text-red-600 font-bold' : ''}>{ITALIAN_DAY_INITIALS[d.getDay()]}</span>
                             <span className={`text-xs md:text-sm font-semibold ${isHol ? 'text-red-600' : ''}`}>{format(d, 'd')}</span>
-                            {hasNote && <div className={`absolute top-0.5 right-0.5 ${iconColor}`}><IconComponent size={10} className="fill-current" /></div>}
                           </div>
                         );
                     })}
@@ -1601,6 +1634,7 @@ export const Planner = () => {
                     <div className="w-[40px] md:w-[60px] shrink-0 bg-slate-50 border-r relative flex items-center justify-center"></div>
                     {days.map(d => {
                          const dateKey = formatDateKey(d);
+                         const isCurrentMonth = isSameMonth(d, parseISO(state.currentDate));
 
                          let status = 'ADEQUATE'; 
                          Object.keys(state.config.coverage).forEach(type => {
@@ -1618,8 +1652,8 @@ export const Planner = () => {
                          });
 
                          return (
-                            <div key={d.toString()} className="flex-1 min-w-[44px] md:min-w-0 flex items-center justify-center border-r border-slate-200 group relative">
-                                {(isSameMonth(d, parseISO(state.currentDate)) || viewSpan === 'WEEK') && (
+                            <div key={d.toString()} className={`flex-1 min-w-[44px] md:min-w-0 flex items-center justify-center border-r border-slate-200 group relative ${!isCurrentMonth && viewSpan === 'MONTH' ? 'bg-slate-100 grayscale opacity-60' : ''}`}>
+                                {(isCurrentMonth || viewSpan === 'WEEK') && (
                                     <>
                                         {/* EXPANDED VIEW: SHOW NUMBERS */}
                                         {showCoverageDetails ? (
@@ -1668,7 +1702,7 @@ export const Planner = () => {
                                 )}
                                  
                                  {/* Hover Tooltip (Only visible when collapsed or for extra info) */}
-                                 {!showCoverageDetails && (
+                                 {!showCoverageDetails && (isCurrentMonth || viewSpan === 'WEEK') && (
                                      <div className="hidden group-hover:block absolute top-full left-1/2 -translate-x-1/2 mt-2 p-2 bg-slate-800 text-white text-[10px] rounded shadow-lg whitespace-nowrap z-50">
                                          <div className="font-bold border-b border-slate-600 mb-1 pb-1">Copertura {format(d, 'dd/MM')}</div>
                                          {Object.entries(state.config.coverage).map(([code, conf]: [string, any]) => {
@@ -1824,7 +1858,7 @@ export const Planner = () => {
                   </button>
               )}
               <div className="border-t border-slate-100 my-1"></div>
-              <button onClick={() => handleBulkAssign('F')} className="flex items-center gap-2 px-3 py-2 hover:bg-yellow-50 text-yellow-700 rounded text-left">
+              <button onClick={() => handleBulkAssign('FE')} className="flex items-center gap-2 px-3 py-2 hover:bg-yellow-50 text-yellow-700 rounded text-left">
                   <Briefcase size={16} /> Assegna Ferie
               </button>
               <button onClick={() => handleBulkAssign('MAL')} className="flex items-center gap-2 px-3 py-2 hover:bg-red-50 text-red-700 rounded text-left">
@@ -1949,6 +1983,105 @@ export const Planner = () => {
           )}
       </Modal>
 
+      {/* BULK ASSIGNMENT MODAL */}
+      <Modal isOpen={showBulkModal} onClose={() => setShowBulkModal(false)} title="Assegnazione Multipla Turni" className="max-w-2xl">
+          <div className="space-y-4">
+              {multiSelection && (() => {
+                  const op = state.operators.find(o => o.id === multiSelection.opId);
+                  const diff = differenceInDays(parseISO(multiSelection.end), parseISO(multiSelection.start)) + 1;
+                  return (
+                      <div className="bg-white border-l-4 border-blue-500 p-4 rounded shadow-sm flex items-center justify-between mb-4">
+                          <div>
+                              <div className="text-xs text-slate-500 uppercase font-bold mb-1">Stai modificando</div>
+                              <div className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                  <Users size={18} className="text-blue-600"/>
+                                  {op?.lastName} {op?.firstName}
+                              </div>
+                          </div>
+                          <div className="text-right">
+                              <div className="text-xs text-slate-500 font-medium">Dal {format(parseISO(multiSelection.start), 'dd/MM')} al {format(parseISO(multiSelection.end), 'dd/MM')}</div>
+                              <div className="text-2xl font-black text-blue-600">{diff} <span className="text-sm font-normal text-slate-400">giorni</span></div>
+                          </div>
+                      </div>
+                  );
+              })()}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Working Shifts */}
+                  <div className="space-y-2">
+                       <div className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2"><Clock size={12}/> Turni Operativi</div>
+                       <div className="grid grid-cols-4 gap-1">
+                           {state.shiftTypes.filter(s => s.hours > 0).map(s => (
+                             <button 
+                                key={s.code} 
+                                onClick={() => { handleBulkAssign(s.code); setShowBulkModal(false); }} 
+                                title={s.name}
+                                className="p-2 text-xs font-bold rounded-md border h-10 shadow-sm transition-all hover:scale-105 hover:shadow-md flex items-center justify-center"
+                                style={{backgroundColor: `${s.color}20`, borderColor: s.color, color: 'black'}}
+                             >
+                                 {s.code}
+                             </button>
+                           ))}
+                       </div>
+                  </div>
+                  {/* Absence Shifts */}
+                  <div className="space-y-2">
+                       <div className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2"><CalendarOff size={12}/> Assenze & Altro</div>
+                       <div className="grid grid-cols-4 gap-1">
+                           {state.shiftTypes
+                               .filter(s => s.hours === 0 && s.code !== 'OFF')
+                               // Explicit sort to put F before FE to avoid confusion if FE is listed first
+                               .sort((a,b) => a.code === 'F' ? -1 : (b.code === 'F' ? 1 : 0))
+                               .map(s => (
+                                 <button 
+                                    key={s.code} 
+                                    onClick={() => { 
+                                        // Pass specific code FE for Vacation button if that's what user wants, 
+                                        // or generic F. Here we use exact code from type.
+                                        handleBulkAssign(s.code); 
+                                        setShowBulkModal(false); 
+                                    }} 
+                                    title={s.name}
+                                    className="p-2 text-xs font-bold rounded-md border h-10 shadow-sm transition-all hover:scale-105 hover:shadow-md flex items-center justify-center"
+                                    style={{backgroundColor: `${s.color}20`, borderColor: s.color, color: 'black'}}
+                                 >
+                                     {s.code}
+                                 </button>
+                           ))}
+                           <button onClick={() => { handleBulkAssign(''); setShowBulkModal(false); }} title="Svuota Cella" className="p-2 text-xs font-bold border rounded-md h-10 hover:bg-red-50 text-red-600 flex items-center justify-center border-red-200">
+                               <Eraser size={16} />
+                           </button>
+                      </div>
+                  </div>
+              </div>
+
+              <div className="pt-4 border-t mt-2 flex justify-between items-center">
+                  <div className="flex gap-2">
+                      <button 
+                          onClick={() => { handleBulkAssign('RESET'); setShowBulkModal(false); }}
+                          className="text-red-500 hover:text-red-700 text-sm font-medium flex items-center gap-2 px-3 py-2 rounded hover:bg-red-50 transition-colors"
+                      >
+                          <RotateCcw size={16} /> Ripristina da Matrice
+                      </button>
+                      <button 
+                          onClick={() => { 
+                              if (multiSelection) {
+                                  setSelectedCell({opId: multiSelection.opId, date: multiSelection.start});
+                                  setEditMode(true);
+                                  setIsBulkEdit(true);
+                                  setShowBulkModal(false);
+                              }
+                          }}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-2 px-3 py-2 rounded hover:bg-blue-50 transition-colors"
+                      >
+                          <Settings2 size={16} /> Altro (Avanzate)...
+                      </button>
+                  </div>
+                  <Button variant="ghost" onClick={() => setShowBulkModal(false)}>Annulla</Button>
+              </div>
+          </div>
+      </Modal>
+
       {/* NEW: Cell Report Modal - KEPT FOR REFERENCE OR FUTURE USE but disabled for click */}
       <Modal 
         isOpen={showCellReport && !!selectedCell} 
@@ -2058,7 +2191,7 @@ export const Planner = () => {
       </Modal>
 
       {/* Edit Modal (Shift) */}
-      <Modal isOpen={!!selectedCell && editMode && !isMatrixView} onClose={() => { setEditMode(false); setSelectedCell(null); }} title="Modifica Assegnazione Turno" className="max-w-4xl">
+      <Modal isOpen={!!selectedCell && editMode && !isMatrixView} onClose={() => { setEditMode(false); setSelectedCell(null); setIsBulkEdit(false); }} title={isBulkEdit ? "Modifica Massiva Turni" : "Modifica Assegnazione Turno"} className="max-w-4xl">
         {selectedCell && (() => {
              const op = state.operators.find(o => o.id === selectedCell.opId);
              const workingShifts = state.shiftTypes.filter(s => s.hours > 0 && s.code !== 'OFF');
@@ -2074,10 +2207,24 @@ export const Planner = () => {
                              <div className="text-lg font-bold text-slate-800">{op?.lastName} {op?.firstName}</div>
                         </div>
                         <div className="text-right">
-                             <div className="text-xs text-slate-500 uppercase font-bold">Data</div>
-                             <div className="text-lg font-medium text-slate-700">{format(parseISO(selectedCell.date), 'EEE, d MMM')}</div>
+                             <div className="text-xs text-slate-500 uppercase font-bold">{isBulkEdit ? "Periodo Selezionato" : "Data"}</div>
+                             {isBulkEdit && multiSelection ? (
+                                 <div className="text-lg font-medium text-slate-700">
+                                     {format(parseISO(multiSelection.start), 'dd/MM')} - {format(parseISO(multiSelection.end), 'dd/MM')}
+                                     <span className="text-sm text-slate-400 ml-2">({differenceInDays(parseISO(multiSelection.end), parseISO(multiSelection.start)) + 1} gg)</span>
+                                 </div>
+                             ) : (
+                                 <div className="text-lg font-medium text-slate-700">{format(parseISO(selectedCell.date), 'EEE, d MMM')}</div>
+                             )}
                         </div>
                     </div>
+
+                    {isBulkEdit && (
+                        <div className="bg-amber-50 p-3 rounded text-amber-800 text-sm flex gap-2 items-center">
+                            <AlertTriangle size={16} />
+                            <span>Stai applicando le modifiche a <strong>tutti i giorni</strong> selezionati.</span>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Working Shifts Buttons */}
@@ -2131,18 +2278,28 @@ export const Planner = () => {
                             <div className="space-y-3 animate-in fade-in">
                                 <div className="grid grid-cols-12 gap-2 items-end">
                                     <div className="col-span-4">
-                                        <Select 
-                                            label="Voce" 
-                                            value={newSpecialType} 
-                                            onChange={(e) => setNewSpecialType(e.target.value)}
-                                            className="text-sm"
-                                        >
-                                            <option value="Straordinario">Straordinario</option>
-                                            <option value="Rientro">Rientro</option>
-                                            <option value="Sostituzione">Sostituzione</option>
-                                            <option value="Indennità">Indennità</option>
-                                            <option value="Banca Ore">Banca Ore</option>
-                                        </Select>
+                                        <div className="mb-2">
+                                            <label className="block text-xs font-medium text-slate-500 uppercase mb-1">Voce</label>
+                                            <input 
+                                                list="special-types-list" 
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
+                                                value={newSpecialType} 
+                                                onChange={(e) => setNewSpecialType(e.target.value)} 
+                                                placeholder="Seleziona o Scrivi..."
+                                            />
+                                            <datalist id="special-types-list">
+                                                <option value="Straordinario" />
+                                                <option value="Rientro" />
+                                                <option value="Sostituzione" />
+                                                <option value="Indennità" />
+                                                <option value="Banca Ore" />
+                                                <option value="Permesso Non Retribuito" />
+                                                <option value="Permesso Retribuito" />
+                                                <option value="Recupero" />
+                                                <option value="Formazione" />
+                                                <option value="Malattia Figlio" />
+                                            </datalist>
+                                        </div>
                                     </div>
                                     <div className="col-span-2">
                                         <Input label="Inizio" type="time" value={newSpecialStart} onChange={(e) => setNewSpecialStart(e.target.value)} className="text-sm" />
@@ -2156,11 +2313,11 @@ export const Planner = () => {
                                     <div className="col-span-2">
                                         <Button 
                                             onClick={() => {
-                                                if (newSpecialHours !== '' || (newSpecialStart && newSpecialEnd)) {
+                                                if ((newSpecialHours !== '' || (newSpecialStart && newSpecialEnd)) && newSpecialType.trim()) {
                                                     const hours = typeof newSpecialHours === 'number' ? newSpecialHours : 0;
                                                     setDraftSpecialEvents([...draftSpecialEvents, {
                                                         id: crypto.randomUUID(),
-                                                        type: newSpecialType,
+                                                        type: newSpecialType.trim(),
                                                         startTime: newSpecialStart,
                                                         endTime: newSpecialEnd,
                                                         hours: hours,
@@ -2209,17 +2366,27 @@ export const Planner = () => {
                     <div className="flex justify-between items-center pt-4 border-t mt-4">
                        <Button 
                            variant="ghost" 
-                           className={hasMatrixShift ? "text-blue-600 hover:bg-blue-50" : "text-red-500 hover:bg-red-50"}
-                           onClick={() => { dispatch({ type: 'REMOVE_CELL', payload: { operatorId: selectedCell.opId, date: selectedCell.date } }); clearSelection(); }}
+                           className={hasMatrixShift && !isBulkEdit ? "text-blue-600 hover:bg-blue-50" : "text-red-500 hover:bg-red-50"}
+                           onClick={() => { 
+                               if(isBulkEdit) {
+                                   setDraftShift('');
+                                   setDraftNote('');
+                                   setDraftSpecialEvents([]);
+                                   // This clears the form, doesn't submit yet
+                               } else {
+                                   dispatch({ type: 'REMOVE_CELL', payload: { operatorId: selectedCell.opId, date: selectedCell.date } }); 
+                                   clearSelection(); 
+                               }
+                           }}
                        >
-                           {hasMatrixShift ? (
+                           {hasMatrixShift && !isBulkEdit ? (
                                <span className="flex items-center gap-2"><RotateCcw size={16} /> Ripristina Matrice</span>
                            ) : (
-                               <span className="flex items-center gap-2"><Trash2 size={16} /> Svuota Cella</span>
+                               <span className="flex items-center gap-2"><Trash2 size={16} /> Svuota (Reset)</span>
                            )}
                        </Button>
                        <div className="flex gap-2">
-                           <Button variant="ghost" onClick={() => { setEditMode(false); setSelectedCell(null); }}>Annulla</Button>
+                           <Button variant="ghost" onClick={() => { setEditMode(false); setSelectedCell(null); setIsBulkEdit(false); }}>Annulla</Button>
                            <Button variant="primary" onClick={saveChanges}>Conferma</Button>
                        </div>
                     </div>

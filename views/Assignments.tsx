@@ -174,8 +174,8 @@ export const Assignments = () => {
                                         className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-200 text-[10px] relative ${isWeekend(d) ? 'bg-slate-50' : ''} ${selectedAssignment ? 'cursor-pointer hover:bg-blue-50' : ''}`}
                                         onClick={() => toggleAssignment(op.id, dateKey)}
                                     >
-                                        {/* Changed text color to be darker/more visible */}
-                                        <span className="text-slate-700 font-medium">{shiftCode}</span>
+                                        {/* Changed text color to be darker/more visible and slightly larger font */}
+                                        <span className="text-slate-800 font-bold text-xs">{shiftCode}</span>
                                         
                                         {assignment && (
                                             <div 
