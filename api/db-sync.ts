@@ -5,7 +5,7 @@ export const config = {
 };
 
 export default async function handler(request: Request) {
-  // Gestione preflight CORS (opzionale se gestito dal framework, ma utile per sicurezza)
+  // Gestione preflight CORS
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 200,
@@ -18,17 +18,6 @@ export default async function handler(request: Request) {
   }
 
   try {
-    const authHeader = request.headers.get('Authorization');
-    // Se APP_ACCESS_CODE non è impostato su Vercel, l'accesso è libero (non raccomandato per prod)
-    const expectedAuth = process.env.APP_ACCESS_CODE ? `Bearer ${process.env.APP_ACCESS_CODE}` : null;
-
-    if (expectedAuth && authHeader !== expectedAuth) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
-        status: 401, 
-        headers: { 'Content-Type': 'application/json' } 
-      });
-    }
-
     if (!process.env.DATABASE_URL) {
       return new Response(JSON.stringify({ error: 'DATABASE_URL not configured' }), { 
         status: 500, 
@@ -37,9 +26,45 @@ export default async function handler(request: Request) {
     }
 
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const authHeader = request.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+
+    // Verifica Token di Sessione nel DB
+    let isAuthenticated = false;
+    if (token) {
+        // Fallback per vecchio APP_ACCESS_CODE durante migrazione (opzionale, rimuovere per sicurezza totale)
+        if (process.env.APP_ACCESS_CODE && token === process.env.APP_ACCESS_CODE) {
+            isAuthenticated = true;
+        } else {
+            // Check tabella sessions
+            // Nota: Lazy create table sessions nel caso db-sync venga chiamato prima di auth (raro ma possibile)
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS sessions (
+                    token TEXT PRIMARY KEY,
+                    username TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '7 days')
+                );
+            `);
+            
+            const { rows } = await pool.query('SELECT username FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
+            if (rows.length > 0) {
+                isAuthenticated = true;
+            }
+        }
+    }
+
+    if (!isAuthenticated) {
+      await pool.end();
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+        status: 401, 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+
+    // --- Logica Dati (Invariata) ---
 
     if (request.method === 'GET') {
-        // Inizializza la tabella se non esiste (Lazy initialization)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS shiftmaster_state (
                 id INT PRIMARY KEY DEFAULT 1,
@@ -52,7 +77,6 @@ export default async function handler(request: Request) {
         const { rows } = await pool.query('SELECT data FROM shiftmaster_state WHERE id = 1');
         const data = rows.length > 0 ? rows[0].data : {};
         
-        // Chiudi pool (opzionale in serverless HTTP ma buona prassi)
         await pool.end();
 
         return new Response(JSON.stringify(data), { 
@@ -64,7 +88,6 @@ export default async function handler(request: Request) {
     if (request.method === 'POST') {
         const body = await request.json();
         
-        // Upsert dei dati: Inserisce o Aggiorna l'unica riga con ID=1
         await pool.query(`
             INSERT INTO shiftmaster_state (id, data, updated_at)
             VALUES (1, $1, NOW())

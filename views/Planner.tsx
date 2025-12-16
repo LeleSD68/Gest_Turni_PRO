@@ -108,6 +108,7 @@ export const Planner = () => {
   const [clipboard, setClipboard] = useState<string[] | null>(null);
 
   const [draggingCell, setDraggingCell] = useState<{ opId: string; date: string } | null>(null);
+  const [dragOverCell, setDragOverCell] = useState<{ opId: string; date: string } | null>(null);
   const [swapSource, setSwapSource] = useState<{ opId: string; date: string } | null>(null);
   
   // New State for Drag & Drop Swap Confirmation
@@ -401,25 +402,43 @@ export const Planner = () => {
     setDraggingCell({ opId, date });
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', JSON.stringify({ opId, date }));
+    
+    // Create a custom drag image or use default. 
+    // Default is usually fine, but sometimes transparency helps.
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
+    e.preventDefault(); // Necessary to allow dropping
     e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleCellDragEnter = (opId: string, date: string, isEmployed: boolean) => {
+      if (draggingCell && isEmployed) {
+          // Only update if changed to avoid renders
+          if (dragOverCell?.opId !== opId || dragOverCell?.date !== date) {
+              setDragOverCell({ opId, date });
+          }
+      }
   };
 
   const handleDragEnd = () => {
     setDraggingCell(null);
+    setDragOverCell(null);
   };
 
   const handleDrop = (e: React.DragEvent, targetOpId: string, targetDate: string, isEmployed: boolean) => {
     e.preventDefault();
+    setDragOverCell(null); // Clear highlight immediately
+    
     if (!draggingCell || !isEmployed) return;
 
     const { opId: sourceOpId, date: sourceDate } = draggingCell;
     
     // Don't drop on self
-    if (sourceOpId === targetOpId && sourceDate === targetDate) return;
+    if (sourceOpId === targetOpId && sourceDate === targetDate) {
+        setDraggingCell(null);
+        return;
+    }
 
     // Get Source Data
     const sourceEntry = getEntry(state, sourceOpId, sourceDate);
@@ -433,7 +452,10 @@ export const Planner = () => {
     const targetMatrixCode = targetOp ? calculateMatrixShift(targetOp, targetDate, state.matrices) : null;
     const effectiveTargetCode = targetEntry ? targetEntry.shiftCode : (targetMatrixCode || '');
 
-    if (!effectiveSourceCode) return; // Nothing to move from source
+    if (!effectiveSourceCode) {
+        setDraggingCell(null);
+        return; // Nothing to move from source
+    }
 
     const isSwap = effectiveTargetCode !== '' && effectiveTargetCode !== 'R'; 
 
@@ -738,7 +760,134 @@ export const Planner = () => {
       setEditingDayNote({ date: dateKey, note: noteObj });
   };
 
-  const handleExportForGoogleSheets = async () => { /* ... */ };
+  const handleExportForGoogleSheets = async () => {
+    const scriptUrl = state.config.googleScriptUrl;
+    if (!scriptUrl) {
+        alert("Configurazione mancante: Inserisci l'URL della Web App di Google Apps Script nelle Impostazioni > Integrazioni.");
+        return;
+    }
+
+    // 1. Prepare Days
+    const daysToExport = getMonthDays(state.currentDate);
+    
+    // 2. Prepare Headers
+    const dateObj = parseISO(state.currentDate);
+    const monthName = ITALIAN_MONTHS[dateObj.getMonth()];
+    const year = dateObj.getFullYear();
+    
+    const italianDays = ['D', 'L', 'M', 'M', 'G', 'V', 'S'];
+
+    const headerRow1 = [
+        `${monthName.toLowerCase()} ${year}`, 
+        '', 
+        ...daysToExport.map(d => d.getDate())
+    ];
+
+    const headerRow2 = [
+        'Operatore', 
+        'Ore Totali', 
+        ...daysToExport.map(d => italianDays[d.getDay()])
+    ];
+
+    // 3. Prepare Rows
+    const bodyRows = [];
+
+    // Sort operators: use 'order' field if available, else standard sort
+    const sortedOperators = [...state.operators]
+        .filter(op => op.isActive)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    for (const op of sortedOperators) {
+        const rowData = [];
+        let totalHours = 0;
+        const shiftCodes = [];
+
+        // Name
+        rowData.push(`${op.lastName} ${op.firstName}`);
+
+        // Calculate Shifts & Hours
+        for (const day of daysToExport) {
+            const dateKey = formatDateKey(day);
+            
+            // Check employment
+            if (!isOperatorEmployed(op, dateKey)) {
+                shiftCodes.push(''); // Empty if not employed
+                continue;
+            }
+
+            const entry = getEntry(state, op.id, dateKey);
+            const matrixCode = calculateMatrixShift(op, dateKey, state.matrices);
+            const effectiveCode = entry?.shiftCode !== undefined ? entry.shiftCode : (matrixCode || '');
+            
+            // Code for grid
+            shiftCodes.push(effectiveCode);
+
+            // Hours Calculation
+            const shiftType = state.shiftTypes.find(s => s.code === effectiveCode);
+            let hours = 0;
+            
+            if (entry?.customHours !== undefined) {
+                hours = entry.customHours;
+            } else if (shiftType) {
+                if (shiftType.inheritsHours) {
+                    // Recalculate base matrix hours
+                    const baseMatrixCode = calculateMatrixShift(op, dateKey, state.matrices);
+                    const baseShift = state.shiftTypes.find(s => s.code === baseMatrixCode);
+                    hours = baseShift?.hours || 0;
+                } else {
+                    hours = shiftType.hours;
+                }
+            }
+            
+            // Add extra event hours
+            if (entry?.specialEvents) {
+                entry.specialEvents.forEach(ev => {
+                    if (ev.mode === 'ADDITIVE' || !ev.mode) {
+                        hours += ev.hours;
+                    }
+                });
+            }
+
+            totalHours += hours;
+        }
+
+        // Add Total Hours
+        rowData.push(totalHours);
+        
+        // Add Codes
+        rowData.push(...shiftCodes);
+
+        bodyRows.push(rowData);
+    }
+
+    // 4. Footer
+    const footerRow = [
+        `Ultimo aggiornamento: ${new Date().toLocaleString('it-IT')}`,
+        ...Array(daysToExport.length + 1).fill('')
+    ];
+
+    // Construct final grid
+    const grid = [headerRow1, headerRow2, ...bodyRows, [], footerRow];
+
+    const payload = {
+        action: 'export_grid', // Changed action to be specific
+        month: state.currentDate,
+        grid: grid
+    };
+
+    try {
+        await fetch(scriptUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        alert("Dati inviati a Google Sheets!\nIl foglio verrà aggiornato con la griglia completa.");
+    } catch (err) {
+        console.error(err);
+        alert("Errore durante l'invio.");
+    }
+  };
   const handleExportCSV = () => { /* ... */ };
 
   const handleCellClick = (e: React.MouseEvent, opId: string, date: string, isEmployed: boolean) => {
@@ -1064,7 +1213,10 @@ export const Planner = () => {
     const violation = entry?.violation;
     const isSelected = selectedCell?.opId === op.id && selectedCell?.date === dateKey;
     const isPendingTarget = pendingSwap?.target.opId === op.id && pendingSwap?.target.date === dateKey;
+    
+    // New Drag State
     const isDragging = draggingCell?.opId === op.id && draggingCell?.date === dateKey;
+    const isDragOver = dragOverCell?.opId === op.id && dragOverCell?.date === dateKey;
 
     let isMultiSelected = false;
     if (multiSelection && multiSelection.opId === op.id) {
@@ -1107,12 +1259,26 @@ export const Planner = () => {
     const nextEntry = getEntry(state, op.id, nextDateKey);
     const isConnectedRight = !isMatrixView && entry?.isManual && nextEntry?.isManual && entry.shiftCode === nextEntry.shiftCode && entry.shiftCode !== 'OFF' && entry.shiftCode !== '';
 
+    // Calculate drop feedback style
+    let dropFeedbackClass = '';
+    if (isDragOver && !isDragging) {
+        const targetEntry = getEntry(state, op.id, dateKey);
+        const matrixShift = calculateMatrixShift(op, dateKey, state.matrices);
+        const targetCode = targetEntry ? targetEntry.shiftCode : (matrixShift || '');
+        const isTargetOccupied = targetCode !== '' && targetCode !== 'R';
+        
+        dropFeedbackClass = isTargetOccupied 
+            ? 'ring-2 ring-amber-400 bg-amber-50 z-40' 
+            : 'ring-2 ring-green-500 bg-green-50 z-40';
+    }
+
     return (
       <div 
         key={dateKey}
         draggable={!isMatrixView && isEmployed}
         onDragStart={(e) => handleDragStart(e, op.id, dateKey, isEmployed)}
         onDragOver={handleDragOver}
+        onDragEnter={() => handleCellDragEnter(op.id, dateKey, isEmployed)}
         onDrop={(e) => handleDrop(e, op.id, dateKey, isEmployed)}
         onDragEnd={handleDragEnd}
         onClick={(e) => { e.stopPropagation(); handleCellClick(e, op.id, dateKey, isEmployed); }}
@@ -1120,7 +1286,7 @@ export const Planner = () => {
         onDoubleClick={(e) => { e.stopPropagation(); handleCellDoubleClick(); }}
         onMouseEnter={() => setHoveredDate(dateKey)}
         style={{ 
-            backgroundColor: violation ? '#fee2e2' : (shiftType ? shiftType.color : undefined),
+            backgroundColor: (isDragOver ? undefined : (violation ? '#fee2e2' : (shiftType ? shiftType.color : undefined))),
             opacity: isGhost ? 0.5 : 1,
             borderColor: isConnectedRight && shiftType ? shiftType.color : undefined
         }}
@@ -1133,6 +1299,7 @@ export const Planner = () => {
           ${isMultiSelected ? 'ring-inset ring-2 ring-indigo-400 bg-indigo-50/50' : ''}
           ${isPendingTarget ? 'ring-2 ring-dashed ring-blue-500 z-20' : ''}
           ${isDragging ? 'opacity-40 scale-90 ring-2 ring-slate-400' : ''}
+          ${dropFeedbackClass}
           ${violation ? 'text-red-600 font-bold border border-red-500' : (shiftType ? getContrastColor(shiftType.color) : 'text-slate-700')}
           ${isMatrixOverride ? 'ring-2 ring-dashed ring-red-500 z-10' : ''}
           ${isEmployed ? 'cursor-pointer hover:opacity-90 active:cursor-grabbing' : 'cursor-not-allowed opacity-50 bg-slate-200'}
@@ -1668,6 +1835,8 @@ export const Planner = () => {
           </div>
       </div>
 
+      {/* ... existing Modals ... */}
+      
       {/* Multi-Select Popup Menu */}
       {multiSelection && multiSelectPopupPosition && (
           <div 
