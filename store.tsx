@@ -357,6 +357,8 @@ const AppContext = createContext<{
   accessCode: string;
   setAccessCode: (code: string) => void;
   checkAuth: (code: string) => Promise<boolean>;
+  saveToCloud: (force?: boolean) => Promise<void>;
+  syncFromCloud: (isAutoSync?: boolean) => Promise<void>;
 }>({ 
     state: initialState, 
     dispatch: () => null,
@@ -364,7 +366,9 @@ const AppContext = createContext<{
     syncStatus: 'IDLE',
     accessCode: '',
     setAccessCode: () => {},
-    checkAuth: async () => false
+    checkAuth: async () => false,
+    saveToCloud: async () => {},
+    syncFromCloud: async () => {}
 });
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -377,7 +381,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'SAVED' | 'ERROR' | 'UNAUTHORIZED'>('IDLE');
   const [accessCode, setAccessCode] = useState(() => localStorage.getItem('shiftmaster_access_code') || '');
 
-  // Logic to fetch from cloud (Defined before checkAuth to use it)
+  // 1. Sync FROM Cloud Logic
   const syncFromCloud = useCallback(async (isAutoSync = false) => {
     if (!accessCode) return;
 
@@ -399,10 +403,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 const localTs = historyState.present.lastLogin;
                 const cloudTs = cloudData.lastLogin || 0;
 
-                // Always load on explicit sync (like initial load) or if cloud is newer
+                // Always load on explicit sync (not auto) OR if cloud is strictly newer
                 if (cloudTs > localTs || !isAutoSync) {
                      dispatch({ type: 'RESTORE_BACKUP', payload: cloudData });
                      if (!isAutoSync) setSyncStatus('SAVED');
+                } else if (isAutoSync && localTs > cloudTs) {
+                    // Local is newer, triggering save might be better, but let's let auto-save handle it
                 }
             } else {
                 // Primo avvio con DB vuoto o pulito
@@ -416,7 +422,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.error("Cloud sync failed", e);
         if (!isAutoSync) setSyncStatus('ERROR');
     }
-  }, [accessCode]); // Removing historyState.present dependency to avoid loops
+  }, [accessCode, historyState.present.lastLogin]); // Added timestamp dep
+
+  // 2. Save TO Cloud Logic
+  const saveToCloud = useCallback(async (force = false) => {
+      if (!accessCode) return;
+      setSyncStatus('SYNCING');
+
+      try {
+          // Update timestamp to now to ensure this save wins next time
+          const payload = { ...historyState.present, lastLogin: Date.now() };
+          
+          const res = await fetch('/api/db-sync', {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${accessCode}`
+              },
+              body: JSON.stringify(payload)
+          });
+
+          if (res.status === 401) {
+              setSyncStatus('UNAUTHORIZED');
+              dispatch({ type: 'LOGOUT' });
+          } else if (res.ok) {
+              setSyncStatus('SAVED');
+          } else {
+              setSyncStatus('ERROR');
+          }
+      } catch (e) {
+          console.error("Cloud save failed", e);
+          setSyncStatus('ERROR');
+      }
+  }, [historyState.present, accessCode]);
 
   const checkAuth = useCallback(async (codeToVerify: string) => {
       setAccessCode(codeToVerify);
@@ -479,36 +517,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     // Only save if authenticated and we have a valid lastLogin (prevents saving empty state over cloud state on boot)
     if (historyState.present.isAuthenticated && historyState.present.lastLogin > 0) {
-      
-      setSyncStatus('SYNCING'); // Immediate feedback UI
-
       const timeoutId = setTimeout(() => {
-          const payload = { ...historyState.present, lastLogin: Date.now() };
-          
-          fetch('/api/db-sync', {
-              method: 'POST',
-              headers: { 
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${accessCode}`
-              },
-              body: JSON.stringify(payload)
-          })
-          .then(res => {
-              if(res.status === 401) {
-                  setSyncStatus('UNAUTHORIZED');
-                  dispatch({ type: 'LOGOUT' });
-              } else if(res.ok) {
-                  setSyncStatus('SAVED');
-              } else {
-                  setSyncStatus('ERROR');
-              }
-          })
-          .catch(() => setSyncStatus('ERROR'));
+          saveToCloud(false);
       }, 2000); // Debounce 2s
 
       return () => clearTimeout(timeoutId);
     }
-  }, [historyState.present, accessCode]);
+  }, [historyState.present, saveToCloud]);
 
   const historyStatus = {
       canUndo: historyState.past.length > 0,
@@ -523,7 +538,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         syncStatus,
         accessCode,
         setAccessCode,
-        checkAuth
+        checkAuth,
+        saveToCloud,
+        syncFromCloud
     }}>
       {children}
     </AppContext.Provider>

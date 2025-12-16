@@ -1,7 +1,8 @@
+
 import React, { useRef, useState, useMemo } from 'react';
 import { useApp } from '../store';
 import { Button, Card, Modal, Badge } from '../components/UI';
-import { Download, Upload, AlertTriangle, CheckCircle, Calendar, Users, FileJson, RefreshCw, ListFilter, ArrowRightLeft, ShieldCheck, FileCheck, Settings, X } from 'lucide-react';
+import { Download, Upload, AlertTriangle, CheckCircle, Calendar, Users, FileJson, RefreshCw, ListFilter, ArrowRightLeft, ShieldCheck, FileCheck, Settings, X, Database, CloudUpload, CloudDownload } from 'lucide-react';
 import { AppState, PlannerEntry, SpecialEvent, CONSTANTS, Operator } from '../types';
 import { format, isValid } from 'date-fns';
 import { calculateMatrixShift, getShiftByCode, parseISO } from '../utils';
@@ -17,7 +18,7 @@ type ImportReport = {
 };
 
 export const DataManagement = () => {
-    const { state, dispatch } = useApp();
+    const { state, dispatch, saveToCloud, syncFromCloud, syncStatus } = useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
     const [showConfirmReset, setShowConfirmReset] = useState(false);
@@ -181,6 +182,9 @@ export const DataManagement = () => {
             finalState.plannerData = newPlannerData;
         }
 
+        // CRITICAL: Update timestamp to NOW to prevent older cloud data from overwriting this import
+        finalState.lastLogin = Date.now();
+
         dispatch({ type: 'RESTORE_BACKUP', payload: finalState });
         
         // Genera Report
@@ -228,7 +232,43 @@ export const DataManagement = () => {
             <h1 className="text-2xl font-bold text-slate-800 mb-6">Gestione Dati</h1>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
-                <Card title="Esporta Dati">
+                
+                {/* Cloud Sync Manual Control */}
+                <Card title="Sincronizzazione Cloud Database" className="md:col-span-2 border-blue-200">
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                            <Database size={24} className="text-blue-600" />
+                            <div className="text-sm text-blue-900 flex-1">
+                                <p className="font-bold">Stato Connessione: {syncStatus}</p>
+                                <p className="text-xs opacity-80">Ultimo aggiornamento locale: {format(new Date(state.lastLogin), 'dd/MM/yyyy HH:mm:ss')}</p>
+                            </div>
+                        </div>
+                        
+                        <div className="flex gap-4">
+                            <Button 
+                                onClick={() => saveToCloud(true)} 
+                                className="flex-1 flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                                disabled={syncStatus === 'SYNCING'}
+                            >
+                                <CloudUpload size={18} /> Forza Salvataggio su Cloud
+                            </Button>
+                            <Button 
+                                onClick={() => syncFromCloud(false)} 
+                                variant="secondary"
+                                className="flex-1 flex justify-center items-center gap-2"
+                                disabled={syncStatus === 'SYNCING'}
+                            >
+                                <CloudDownload size={18} /> Forza Ripristino da Cloud
+                            </Button>
+                        </div>
+                        <p className="text-xs text-slate-500 italic text-center">
+                            Usa "Forza Salvataggio" se hai importato dati e vuoi sovrascrivere il database. 
+                            Usa "Forza Ripristino" se vuoi scartare le modifiche locali e ricaricare dal server.
+                        </p>
+                    </div>
+                </Card>
+
+                <Card title="Esporta File Locale">
                     <div className="space-y-4">
                         <p className="text-sm text-slate-600">
                             Scarica un backup completo di tutti i dati attuali (operatori, turni, configurazioni) in formato JSON.
@@ -239,7 +279,7 @@ export const DataManagement = () => {
                     </div>
                 </Card>
 
-                <Card title="Importa Dati">
+                <Card title="Importa File Locale">
                     <div className="space-y-4">
                         <p className="text-sm text-slate-600">
                             Carica un file di backup. Potrai scegliere <strong>cosa importare</strong> nel passaggio successivo.
@@ -270,7 +310,7 @@ export const DataManagement = () => {
                              <h4 className="font-bold text-red-700 flex items-center gap-2 mb-1">
                                  <AlertTriangle size={16} /> Reset Totale
                              </h4>
-                             Cancella tutti i dati salvati e ripristina l'applicazione allo stato iniziale.
+                             Cancella tutti i dati salvati localmente e ripristina l'applicazione allo stato iniziale.
                          </div>
                          <Button variant="danger" onClick={() => setShowConfirmReset(true)}>
                              Reset App
