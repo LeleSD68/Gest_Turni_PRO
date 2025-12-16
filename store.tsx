@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 const generateDefaultContract = (id: string) => ([{ id: `c-${id}`, start: '2025-01-01' }]);
 
 const initialState: AppState = {
-  isAuthenticated: false, // Default false per richiedere login
+  isAuthenticated: true, // Accesso immediato
   lastLogin: Date.now(),
   currentDate: format(new Date(), 'yyyy-MM-01'),
   operators: [
@@ -382,6 +382,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const parsed = JSON.parse(stored);
         // Ensure migration/defaults
         const merged = { ...initialState, ...parsed };
+        
+        // Force authentication to skip login screen
+        merged.isAuthenticated = true;
         
         // Ensure operators have matrixHistory array
         merged.operators = merged.operators.map((op: Operator) => ({

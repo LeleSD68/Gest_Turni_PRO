@@ -41,8 +41,21 @@ export const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { 
 export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; className?: string }> = ({ isOpen, onClose, title, children, className = '' }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 md:p-0">
-      <div className={`bg-white rounded-lg shadow-xl w-full flex flex-col max-h-[90vh] ${className || 'max-w-md'}`}>
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 md:p-0"
+      onClick={(e) => {
+        // Close on backdrop click and stop propagation to parent
+        e.stopPropagation();
+        onClose();
+      }}
+    >
+      <div 
+        className={`bg-white rounded-lg shadow-xl w-full flex flex-col max-h-[90vh] ${className || 'max-w-md'}`}
+        onClick={(e) => {
+          // Prevent closing when clicking inside the modal
+          e.stopPropagation();
+        }}
+      >
         <div className="px-4 py-3 bg-slate-50 border-b flex justify-between items-center shrink-0 rounded-t-lg">
           <h3 className="font-semibold text-slate-800">{title}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">&times;</button>

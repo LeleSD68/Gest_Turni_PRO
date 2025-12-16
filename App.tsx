@@ -5,91 +5,10 @@ import { Settings } from './views/Settings';
 import { Dashboard } from './views/Dashboard';
 import { Assignments } from './views/Assignments';
 import { DataManagement } from './views/DataManagement';
-import { Calendar, Settings as SettingsIcon, BarChart2, Menu, Briefcase, Database, Lock, ArrowRight, Loader2, User } from 'lucide-react';
-import { Button, Input, Card } from './components/UI';
-
-const LoginScreen = () => {
-    const { checkAuth, syncStatus } = useApp();
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState('');
-
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsLoading(true);
-        setError('');
-        
-        const success = await checkAuth(username, password);
-        if (!success) {
-            setError('Credenziali non valide. Riprova.');
-        }
-        setIsLoading(false);
-    };
-
-    return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-            <div className="max-w-md w-full bg-white rounded-lg shadow-2xl p-8">
-                <div className="flex flex-col items-center mb-6">
-                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                        <Lock size={32} className="text-blue-600" />
-                    </div>
-                    <h1 className="text-2xl font-bold text-slate-800">ShiftMaster Pro</h1>
-                    <p className="text-slate-500 text-sm">Accesso Personale</p>
-                </div>
-                
-                <form onSubmit={handleLogin} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Utente</label>
-                        <div className="relative">
-                            <User className="absolute left-3 top-3 text-slate-400" size={18} />
-                            <input 
-                                type="text" 
-                                className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                placeholder="Nome utente"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                autoFocus
-                            />
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-                        <input 
-                            type="password" 
-                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                            placeholder="Password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
-                    </div>
-                    
-                    {error && (
-                        <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-200 text-center animate-pulse">
-                            {error}
-                        </div>
-                    )}
-                    
-                    <button 
-                        type="submit" 
-                        disabled={isLoading || !username || !password}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isLoading ? <Loader2 size={20} className="animate-spin" /> : <>Accedi <ArrowRight size={20} /></>}
-                    </button>
-                </form>
-                
-                <div className="mt-6 text-center text-xs text-slate-400">
-                    Primo accesso? Usa <strong>admin</strong> / <strong>admin</strong><br/>
-                    (Consigliato cambiare password subito dopo)
-                </div>
-            </div>
-        </div>
-    );
-};
+import { Calendar, Settings as SettingsIcon, BarChart2, Menu, Briefcase, Database } from 'lucide-react';
 
 const MainLayout = () => {
-  const { dispatch, state, syncStatus } = useApp();
+  const { dispatch, state } = useApp();
   const [view, setView] = useState<'PLANNER' | 'DASHBOARD' | 'SETTINGS' | 'ASSIGNMENTS' | 'DATA'>('PLANNER');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -113,11 +32,6 @@ const MainLayout = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [dispatch]);
 
-  // Show Login Screen if not authenticated
-  if (!state.isAuthenticated) {
-      return <LoginScreen />;
-  }
-
   return (
     <div className="flex h-screen bg-slate-100">
       {/* Sidebar */}
@@ -137,7 +51,6 @@ const MainLayout = () => {
         <div className="p-4 border-t border-slate-800">
           <div className="text-xs text-slate-500 text-center flex flex-col gap-1">
               <span>v1.6.0</span>
-              <button onClick={() => dispatch({type: 'LOGOUT'})} className="text-red-400 hover:text-red-300 hover:underline">Esci</button>
           </div>
         </div>
       </div>
