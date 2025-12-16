@@ -41,45 +41,6 @@ export const PrintLayout = () => {
     return match ? match[1] : '';
   };
 
-  // Calcolo Ore Totali per il layout di stampa
-  const operatorTotals = React.useMemo(() => {
-    const totals: Record<string, number> = {};
-    state.operators.filter(o => o.isActive).forEach(op => {
-        let sum = 0;
-        days.forEach(d => {
-             const dateKey = formatDateKey(d);
-             if (!isOperatorEmployed(op, dateKey)) return;
-             const entry = getEntry(state, op.id, dateKey);
-             const matrixShift = calculateMatrixShift(op, dateKey, state.matrices);
-             const code = entry?.shiftCode || matrixShift || '';
-             const shift = state.shiftTypes.find(s => s.code === code);
-             
-             let hours = entry?.customHours;
-             if (hours === undefined) {
-                 if (shift?.inheritsHours) {
-                     // Recalculate matrix hours for inheritance
-                     const mCode = calculateMatrixShift(op, dateKey, state.matrices);
-                     const mShift = state.shiftTypes.find(s => s.code === mCode);
-                     hours = mShift?.hours ?? 0;
-                 } else {
-                     hours = shift?.hours ?? 0;
-                 }
-             }
-             
-             // Add special events
-             if (entry?.specialEvents) {
-                 entry.specialEvents.forEach(ev => {
-                     if (ev.mode === 'ADDITIVE' || !ev.mode) sum += ev.hours;
-                 });
-             }
-             
-             sum += (hours || 0);
-        });
-        totals[op.id] = sum;
-    });
-    return totals;
-  }, [state, days]);
-
   return (
     <div 
       id="printable-content"
@@ -118,8 +79,6 @@ export const PrintLayout = () => {
           <thead>
             <tr className="bg-slate-100 h-10" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
               <th className="border border-slate-400 p-2 w-48 text-left font-bold text-slate-800 uppercase text-[11px]">Operatore</th>
-              {/* Colonna Ore Totali */}
-              <th className="border border-slate-400 p-1 w-12 text-center font-bold text-slate-900 bg-slate-200 uppercase text-[10px]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>Ore</th>
               {days.map(d => {
                   const isHol = isItalianHoliday(d);
                   return (
@@ -147,10 +106,6 @@ export const PrintLayout = () => {
               <tr key={op.id}>
                 <td className="border border-slate-400 p-1 pl-3 font-semibold truncate text-slate-900 text-[11px]">
                   {op.lastName} {op.firstName.charAt(0)}.
-                </td>
-                {/* Cella Ore Totali */}
-                <td className="border border-slate-400 p-0 text-center font-bold text-slate-900 bg-slate-100 text-[11px]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-                    {operatorTotals[op.id]?.toFixed(0) || 0}
                 </td>
                 {days.map(d => {
                   const dateKey = formatDateKey(d);

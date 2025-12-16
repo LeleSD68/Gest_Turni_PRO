@@ -19,29 +19,11 @@ export default async function handler(request: Request) {
 
   try {
     const authHeader = request.headers.get('Authorization');
-    const submittedToken = authHeader ? authHeader.replace('Bearer ', '') : '';
+    // Se APP_ACCESS_CODE non è impostato su Vercel, l'accesso è libero (non raccomandato per prod)
+    const expectedAuth = process.env.APP_ACCESS_CODE ? `Bearer ${process.env.APP_ACCESS_CODE}` : null;
 
-    // Recupera le password valide dalle variabili d'ambiente.
-    // Supporta APP_ACCESS_CODES (lista separata da virgole) o fallback su APP_ACCESS_CODE (singola legacy)
-    const rawCodes = process.env.APP_ACCESS_CODES || process.env.APP_ACCESS_CODE || '';
-    
-    // Crea un array di codici validi, rimuovendo spazi bianchi
-    const validCodes = rawCodes.split(',').map(c => c.trim()).filter(c => c !== '');
-
-    // BLOCCO DI SICUREZZA:
-    // 1. Se non ci sono codici configurati sul server, blocca tutto (Configurazione Errata).
-    // 2. Se il token inviato non è incluso nella lista dei codici validi, blocca (Non Autorizzato).
-    
-    if (validCodes.length === 0) {
-        console.error("SECURITY ERROR: No APP_ACCESS_CODES configured on server.");
-        return new Response(JSON.stringify({ error: 'Server misconfiguration: No access codes defined.' }), { 
-            status: 500, 
-            headers: { 'Content-Type': 'application/json' } 
-        });
-    }
-
-    if (!validCodes.includes(submittedToken)) {
-      return new Response(JSON.stringify({ error: 'Unauthorized: Invalid Access Code' }), { 
+    if (expectedAuth && authHeader !== expectedAuth) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
         status: 401, 
         headers: { 'Content-Type': 'application/json' } 
       });

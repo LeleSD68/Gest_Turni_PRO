@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useReducer, useEffect, useState, useCallback, useRef } from 'react';
+
+import React, { createContext, useContext, useReducer, useEffect, useState, useCallback } from 'react';
 import { AppState, CONSTANTS, Operator, ShiftType, Matrix, LogEntry, CallEntry, PlannerEntry, Assignment, AssignmentEntry, HistoryAwareState, DayNote } from './types';
 import { format } from 'date-fns';
 
@@ -9,10 +10,6 @@ const initialState: AppState = {
   isAuthenticated: false, // Default false per richiedere login
   lastLogin: Date.now(),
   currentDate: format(new Date(), 'yyyy-MM-01'),
-  
-  // --- DATI INIZIALI: VUOTI (DATI DEMO NASCOSTI/ARCHIVIATI) ---
-  operators: [],
-  /* [BACKUP DATI DEMO - SCOMMENTARE PER RIPRISTINARE]
   operators: [
     { id: '1', firstName: 'Lara', lastName: 'BUZZARELLO', isActive: true, notes: '', contracts: generateDefaultContract('1'), matrixHistory: [], order: 1 },
     { id: '2', firstName: 'Alessandra', lastName: 'CERESER', isActive: true, notes: '', contracts: generateDefaultContract('2'), matrixHistory: [], order: 2 },
@@ -36,10 +33,6 @@ const initialState: AppState = {
     { id: '20', firstName: '-', lastName: 'OULY', isActive: true, notes: '', contracts: generateDefaultContract('20'), matrixHistory: [], order: 20 },
     { id: '21', firstName: 'Daniela', lastName: 'GRECO', isActive: true, notes: '', contracts: generateDefaultContract('21'), matrixHistory: [], order: 21 },
   ],
-  */
-
-  shiftTypes: [],
-  /* [BACKUP DATI DEMO]
   shiftTypes: [
     // Mattina (Verdi)
     { id: 'm6', code: 'M6', name: 'Mattino (08:00-14:00)', color: '#bcdfc3', hours: 6, isNight: false, isWeekend: false },
@@ -70,19 +63,11 @@ const initialState: AppState = {
     { id: 'mal', code: 'MAL', name: 'Malattia', color: '#ff0000', hours: 0, isNight: false, isWeekend: false, inheritsHours: true }, // Rosso
     { id: 'a', code: 'A', name: 'Assenza', color: '#827d7d', hours: 0, isNight: false, isWeekend: false }
   ],
-  */
-
-  assignments: [],
-  /* [BACKUP DATI DEMO]
   assignments: [
     { id: 'rubino', code: 'Rubino', name: '5° Unità Saletta', color: '#ef4444' },
     { id: 'turchese', code: 'Turchese', name: '3° Unità Saletta', color: '#06b6d4' },
     { id: 'ambra', code: 'Ambra', name: 'Piano terra 16-17', color: '#f59e0b' },
   ],
-  */
-
-  matrices: [],
-  /* [BACKUP DATI DEMO]
   matrices: [
     {
       id: 'm1',
@@ -123,8 +108,6 @@ const initialState: AppState = {
       ]
     }
   ],
-  */
-
   plannerData: {},
   assignmentData: {},
   dayNotes: {}, 
@@ -134,14 +117,11 @@ const initialState: AppState = {
   config: {
     minRestHours: 11,
     maxConsecutiveDays: 6,
-    coverage: {},
-    /* [BACKUP CONFIGURAZIONE COPERTURA]
     coverage: {
       'M8': { min: 2, optimal: 3 },
       'P': { min: 2, optimal: 3 },
       'N': { min: 1, optimal: 2 },
     },
-    */
     ai: {
         enabled: false,
         provider: 'OLLAMA',
@@ -151,19 +131,6 @@ const initialState: AppState = {
     googleScriptUrl: ''
   },
 };
-
-// --- List of Actions that constitute Data Modification ---
-const DATA_ACTIONS = new Set([
-  'UPDATE_CELL', 'REMOVE_CELL', 'BATCH_UPDATE', 
-  'UPDATE_ASSIGNMENT', 'REMOVE_ASSIGNMENT', 
-  'ADD_LOG', 'ADD_CALL', 'UPDATE_CONFIG', 
-  'ADD_OPERATOR', 'UPDATE_OPERATOR', 'DELETE_OPERATOR', 
-  'ADD_SHIFT', 'UPDATE_SHIFT', 'DELETE_SHIFT', 
-  'ADD_MATRIX', 'UPDATE_MATRIX', 'DELETE_MATRIX', 
-  'ADD_ASSIGNMENT_TYPE', 'UPDATE_ASSIGNMENT_TYPE', 'DELETE_ASSIGNMENT_TYPE', 
-  'UPDATE_DAY_NOTE', 'REORDER_OPERATORS',
-  'UNDO', 'REDO'
-]);
 
 // --- Actions ---
 type Action =
@@ -189,7 +156,7 @@ type Action =
   | { type: 'ADD_ASSIGNMENT_TYPE'; payload: Assignment }
   | { type: 'UPDATE_ASSIGNMENT_TYPE'; payload: Assignment }
   | { type: 'DELETE_ASSIGNMENT_TYPE'; payload: string }
-  | { type: 'UPDATE_DAY_NOTE'; payload: { date: string; note: DayNote | string | null } }
+  | { type: 'UPDATE_DAY_NOTE'; payload: { date: string; note: string | DayNote } }
   | { type: 'REORDER_OPERATORS'; payload: Operator[] }
   | { type: 'LOGIN_SUCCESS' }
   | { type: 'LOGOUT' }
@@ -401,7 +368,7 @@ const AppContext = createContext<{
 });
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [historyState, dispatchOriginal] = useReducer(undoableReducer, {
+  const [historyState, dispatch] = useReducer(undoableReducer, {
     past: [],
     present: initialState,
     future: []
@@ -409,17 +376,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'SAVED' | 'ERROR' | 'UNAUTHORIZED'>('IDLE');
   const [accessCode, setAccessCode] = useState(() => localStorage.getItem('shiftmaster_access_code') || '');
-  
-  // Track number of significant modifications for auto-save logic
-  const mutationCountRef = useRef(0);
-
-  // Wrapper for dispatch to track significant data changes
-  const dispatch = useCallback((action: Action) => {
-      if (DATA_ACTIONS.has(action.type)) {
-          mutationCountRef.current += 1;
-      }
-      dispatchOriginal(action);
-  }, []);
 
   // Logic to fetch from cloud (Defined before checkAuth to use it)
   const syncFromCloud = useCallback(async (isAutoSync = false) => {
@@ -446,8 +402,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 // Always load on explicit sync (like initial load) or if cloud is newer
                 if (cloudTs > localTs || !isAutoSync) {
                      dispatch({ type: 'RESTORE_BACKUP', payload: cloudData });
-                     // Reset modification count on sync
-                     mutationCountRef.current = 0;
                      if (!isAutoSync) setSyncStatus('SAVED');
                 }
             } else {
@@ -462,7 +416,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.error("Cloud sync failed", e);
         if (!isAutoSync) setSyncStatus('ERROR');
     }
-  }, [accessCode, historyState.present.lastLogin, dispatch]); // Added dispatch dep
+  }, [accessCode]); // Removing historyState.present dependency to avoid loops
 
   const checkAuth = useCallback(async (codeToVerify: string) => {
       setAccessCode(codeToVerify);
@@ -485,7 +439,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               } else {
                   dispatch({ type: 'LOGIN_SUCCESS' });
               }
-              mutationCountRef.current = 0;
               setSyncStatus('SAVED');
           } else {
               // DB Error but auth ok
@@ -496,7 +449,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.error("Auth check failed", e);
           return false;
       }
-  }, [dispatch]);
+  }, []);
 
   // 1. Initial Load (if code exists in localStorage)
   useEffect(() => {
@@ -522,16 +475,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return () => window.removeEventListener("focus", handleFocus);
   }, [syncFromCloud, historyState.present.isAuthenticated]);
 
-  // 4. AUTO-SAVE: Triggered on >= 2 DATA modifications
+  // 4. AUTO-SAVE: Triggered on ANY state change
   useEffect(() => {
-    // Only save if authenticated and we have a valid lastLogin
+    // Only save if authenticated and we have a valid lastLogin (prevents saving empty state over cloud state on boot)
     if (historyState.present.isAuthenticated && historyState.present.lastLogin > 0) {
       
-      // Check threshold: Do not save if less than 2 significant changes
-      if (mutationCountRef.current < 2) {
-          return;
-      }
-
       setSyncStatus('SYNCING'); // Immediate feedback UI
 
       const timeoutId = setTimeout(() => {
@@ -551,7 +499,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   dispatch({ type: 'LOGOUT' });
               } else if(res.ok) {
                   setSyncStatus('SAVED');
-                  mutationCountRef.current = 0; // Reset counter only on successful save
               } else {
                   setSyncStatus('ERROR');
               }

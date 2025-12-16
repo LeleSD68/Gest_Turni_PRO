@@ -21,7 +21,7 @@ const LoginScreen = () => {
         
         const success = await checkAuth(code);
         if (!success) {
-            setError('Password non valida o accesso negato.');
+            setError('Codice di accesso non valido. Riprova.');
         }
         setIsLoading(false);
     };
@@ -34,16 +34,16 @@ const LoginScreen = () => {
                         <Lock size={32} className="text-blue-600" />
                     </div>
                     <h1 className="text-2xl font-bold text-slate-800">ShiftMaster Pro</h1>
-                    <p className="text-slate-500 text-sm">Accesso Riservato</p>
+                    <p className="text-slate-500 text-sm">Area Riservata</p>
                 </div>
                 
                 <form onSubmit={handleLogin} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Password Individuale</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Codice di Accesso</label>
                         <input 
                             type="password" 
                             className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                            placeholder="Inserisci la tua password"
+                            placeholder="Inserisci il tuo codice univoco"
                             value={code}
                             onChange={(e) => setCode(e.target.value)}
                             autoFocus
@@ -65,12 +65,9 @@ const LoginScreen = () => {
                     </button>
                 </form>
                 
-                <div className="mt-6 text-center text-[10px] text-slate-400 border-t pt-4">
-                    <p className="mb-1">Configurazione Accessi (Vercel):</p>
-                    <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600 block mb-1">
-                        APP_ACCESS_CODES="pass1,pass2,pass3"
-                    </code>
-                    <p>Inserisci le password separate da virgola nelle variabili d'ambiente.</p>
+                <div className="mt-6 text-center text-xs text-slate-400">
+                    Il codice deve essere configurato nelle impostazioni di Netlify<br/>
+                    (Variabile: <code>APP_ACCESS_CODE</code>)
                 </div>
             </div>
         </div>

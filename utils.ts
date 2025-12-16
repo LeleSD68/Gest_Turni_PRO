@@ -3,7 +3,7 @@ import { AppState, Operator, PlannerEntry, ShiftType, Matrix } from './types';
 
 // --- Date Helpers ---
 
-// Polyfills for missing date-fns exports
+// Polyfills for missing date-fns exports or direct wrappers
 export const parseISO = (dateString: string): Date => {
   if (!dateString) return new Date();
   try {
@@ -18,13 +18,36 @@ export const parseISO = (dateString: string): Date => {
   }
 };
 
-const startOfMonth = (date: Date): Date => {
+export const startOfMonth = (date: Date): Date => {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 };
 
-const subDays = (date: Date, amount: number): Date => {
+export const subDays = (date: Date, amount: number): Date => {
   return addDays(date, -amount);
 };
+
+export const subWeeks = (date: Date, amount: number): Date => {
+  return addDays(date, -amount * 7);
+};
+
+export const addWeeks = (date: Date, amount: number): Date => {
+  return addDays(date, amount * 7);
+};
+
+export const startOfWeek = (date: Date, options?: { weekStartsOn?: number }): Date => {
+    const weekStartsOn = options?.weekStartsOn ?? 0;
+    const day = date.getDay();
+    const diff = (day < weekStartsOn ? 7 : 0) + day - weekStartsOn;
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() - diff);
+};
+
+export const endOfWeek = (date: Date, options?: { weekStartsOn?: number }): Date => {
+    const start = startOfWeek(date, options);
+    return addDays(start, 6);
+};
+
+// Re-export endOfMonth to be consistent
+export { endOfMonth };
 
 export const getMonthDays = (currentDateISO: string) => {
   let date = parseISO(currentDateISO);
@@ -235,14 +258,6 @@ export const validateCell = (
           // Previous was Night shift (e.g. 21:00 to 06:00 next day)
           // The 'end' is actually on the *current* day.
           // So rest is simply currentStart - prevEnd.
-          // e.g., N (ends 06:00) -> P (starts 14:00). Gap = 14 - 6 = 8 hours. Wait, N ends at 06:00 current day.
-          
-          // HOWEVER, the standard rule usually implies Night is validated against NEXT day. 
-          // Here we are validating CURRENT day vs PREVIOUS day.
-          // If Prev was N (21-06), it ends at 06:00 on current day.
-          // If Current is M8 (06-14), gap is 0.
-          // If Current is P (14-21), gap is 14 - 6 = 8 hours. (Violation < 11).
-          
           // Correct logic for night ending on current day:
           restHours = currentTimes.start - prevTimes.end;
       } else {

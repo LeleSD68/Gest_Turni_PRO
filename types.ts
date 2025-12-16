@@ -4,6 +4,13 @@ export enum ViewMode {
   MATRIX = 'MATRIX',
 }
 
+export type DayNoteType = 'INFO' | 'ALERT' | 'EVENT' | 'MEETING' | 'HOLIDAY' | 'CHECK';
+
+export interface DayNote {
+  text: string;
+  type: DayNoteType;
+}
+
 export interface ShiftType {
   id: string;
   code: string; // M, P, N
@@ -135,13 +142,6 @@ export interface AIConfig {
   model: string; // e.g. llama3
 }
 
-export type DayNoteType = 'INFO' | 'ALERT' | 'EVENT' | 'MEETING' | 'HOLIDAY' | 'CHECK';
-
-export interface DayNote {
-    text: string;
-    type: DayNoteType;
-}
-
 export interface AppState {
   isAuthenticated: boolean;
   lastLogin: number;
@@ -152,7 +152,7 @@ export interface AppState {
   assignments: Assignment[];
   plannerData: Record<string, PlannerEntry>; // key: operatorId_date
   assignmentData: Record<string, AssignmentEntry>; // key: operatorId_date
-  dayNotes: Record<string, DayNote | string>; // key: date (YYYY-MM-DD), value: note content (string or object)
+  dayNotes: Record<string, string | DayNote>; // key: date (YYYY-MM-DD), value: note content
   logs: LogEntry[];
   calls: CallEntry[];
   matrixSwaps: MatrixSwap[];
