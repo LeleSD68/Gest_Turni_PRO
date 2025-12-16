@@ -34,7 +34,7 @@ const NOTE_TYPES: Record<DayNoteType, { icon: React.ElementType, color: string, 
     CHECK: { icon: CheckCircle2, color: 'text-emerald-500', label: 'Fatto' }
 };
 
-// Icons for popup menu - Defined at top level
+// Icons for popup menu - Defined at top level to avoid hoisting issues
 const ActivityIcon = ({size, className}: {size: number, className?: string}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>;
 const CoffeeIcon = ({size, className}: {size: number, className?: string}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>;
 
@@ -771,51 +771,31 @@ export const Planner = () => {
         return;
     }
 
-    // 1. Prepare Days
-    const daysToExport = getMonthDays(state.currentDate);
-    
-    // 2. Prepare Headers
     const dateObj = parseISO(state.currentDate);
+    const daysInMonth = getMonthDays(state.currentDate);
     const monthName = ITALIAN_MONTHS[dateObj.getMonth()];
     const year = dateObj.getFullYear();
-    
     const italianDays = ['D', 'L', 'M', 'M', 'G', 'V', 'S'];
 
-    const headerRow1 = [
-        `${monthName.toLowerCase()} ${year}`, 
-        '', 
-        ...daysToExport.map(d => d.getDate())
-    ];
+    // Construct data.days
+    const exportDays = daysInMonth.map(d => ({
+        day: d.getDate(),
+        dayOfWeek: italianDays[d.getDay()]
+    }));
 
-    const headerRow2 = [
-        'Operatore', 
-        'Ore Totali', 
-        ...daysToExport.map(d => italianDays[d.getDay()])
-    ];
-
-    // 3. Prepare Rows
-    const bodyRows = [];
-
-    // Sort operators: use 'order' field if available, else standard sort
+    // Construct data.operators
     const sortedOperators = [...state.operators]
         .filter(op => op.isActive)
         .sort((a, b) => (a.order || 0) - (b.order || 0));
 
-    for (const op of sortedOperators) {
-        const rowData = [];
+    const exportOperators = sortedOperators.map(op => {
         let totalHours = 0;
-        const shiftCodes = [];
+        const shifts = [];
 
-        // Name
-        rowData.push(`${op.lastName} ${op.firstName}`);
-
-        // Calculate Shifts & Hours
-        for (const day of daysToExport) {
+        for (const day of daysInMonth) {
             const dateKey = formatDateKey(day);
-            
-            // Check employment
             if (!isOperatorEmployed(op, dateKey)) {
-                shiftCodes.push(''); // Empty if not employed
+                shifts.push('');
                 continue;
             }
 
@@ -823,60 +803,44 @@ export const Planner = () => {
             const matrixCode = calculateMatrixShift(op, dateKey, state.matrices);
             const effectiveCode = entry?.shiftCode !== undefined ? entry.shiftCode : (matrixCode || '');
             
-            // Code for grid
-            shiftCodes.push(effectiveCode);
+            shifts.push(effectiveCode);
 
-            // Hours Calculation
+            // Calc hours
             const shiftType = state.shiftTypes.find(s => s.code === effectiveCode);
             let hours = 0;
-            
             if (entry?.customHours !== undefined) {
                 hours = entry.customHours;
             } else if (shiftType) {
                 if (shiftType.inheritsHours) {
-                    // Recalculate base matrix hours
-                    const baseMatrixCode = calculateMatrixShift(op, dateKey, state.matrices);
-                    const baseShift = state.shiftTypes.find(s => s.code === baseMatrixCode);
-                    hours = baseShift?.hours || 0;
+                     const baseMatrixCode = calculateMatrixShift(op, dateKey, state.matrices);
+                     const baseShift = state.shiftTypes.find(s => s.code === baseMatrixCode);
+                     hours = baseShift?.hours || 0;
                 } else {
                     hours = shiftType.hours;
                 }
             }
-            
-            // Add extra event hours
             if (entry?.specialEvents) {
                 entry.specialEvents.forEach(ev => {
-                    if (ev.mode === 'ADDITIVE' || !ev.mode) {
-                        hours += ev.hours;
-                    }
+                    if (ev.mode === 'ADDITIVE' || !ev.mode) hours += ev.hours;
                 });
             }
-
             totalHours += hours;
         }
 
-        // Add Total Hours
-        rowData.push(totalHours);
-        
-        // Add Codes
-        rowData.push(...shiftCodes);
-
-        bodyRows.push(rowData);
-    }
-
-    // 4. Footer
-    const footerRow = [
-        `Ultimo aggiornamento: ${new Date().toLocaleString('it-IT')}`,
-        ...Array(daysToExport.length + 1).fill('')
-    ];
-
-    // Construct final grid
-    const grid = [headerRow1, headerRow2, ...bodyRows, [], footerRow];
+        return {
+            name: `${op.lastName} ${op.firstName}`,
+            totalHours: totalHours,
+            shifts: shifts
+        };
+    });
 
     const payload = {
-        action: 'export_grid', // Changed action to be specific
-        month: state.currentDate,
-        grid: grid
+        month: dateObj.getMonth() + 1,
+        year: year,
+        monthName: monthName,
+        days: exportDays,
+        operators: exportOperators,
+        grid: [] // Validation placeholder
     };
 
     try {
