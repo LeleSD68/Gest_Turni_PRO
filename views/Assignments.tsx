@@ -143,20 +143,20 @@ export const Assignments = () => {
             {/* Grid */}
             <div className="flex-1 overflow-auto planner-scroll cursor-default">
                 <div className="inline-block min-w-full align-middle">
-                    <div className="sticky top-0 z-20 flex bg-slate-100 border-b border-slate-300 shadow-sm">
-                        <div className="sticky left-0 w-48 bg-slate-100 border-r border-slate-300 flex items-center pl-4 font-bold text-slate-700 z-30 shadow-r h-10">
+                    <div className="sticky top-0 z-20 flex bg-slate-100 border-b border-slate-400 shadow-sm">
+                        <div className="sticky left-0 w-48 bg-slate-100 border-r border-slate-400 flex items-center pl-4 font-bold text-slate-700 z-30 shadow-r h-10">
                             Operatore
                         </div>
                         {days.map(d => (
-                            <div key={d.toString()} className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-200 text-xs font-bold ${isWeekend(d) ? 'bg-slate-200' : ''}`}>
+                            <div key={d.toString()} className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-400 text-xs font-bold ${isWeekend(d) ? 'bg-slate-200' : ''}`}>
                                 {format(d, 'd')}
                             </div>
                         ))}
                     </div>
 
                     {state.operators.filter(o => o.isActive).map(op => (
-                        <div key={op.id} className="flex border-b border-slate-200 hover:bg-slate-50">
-                            <div className="sticky left-0 w-48 bg-white border-r border-slate-200 flex items-center pl-4 py-2 z-10 shadow-r">
+                        <div key={op.id} className="flex border-b border-slate-400 hover:bg-slate-50">
+                            <div className="sticky left-0 w-48 bg-white border-r border-slate-400 flex items-center pl-4 py-2 z-10 shadow-r">
                                 <span className="font-medium text-slate-800 text-sm">{op.lastName} {op.firstName}</span>
                             </div>
                             {days.map(d => {
@@ -168,19 +168,29 @@ export const Assignments = () => {
                                 const assignmentEntry = state.assignmentData[`${op.id}_${dateKey}`];
                                 const assignment = assignmentEntry ? state.assignments.find(a => a.id === assignmentEntry.assignmentId) : null;
 
+                                const shiftType = state.shiftTypes.find(s => s.code === shiftCode);
+                                const isWorking = shiftType && shiftType.hours > 0;
+
                                 return (
                                     <div 
                                         key={d.toString()} 
-                                        className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-200 text-[10px] relative ${isWeekend(d) ? 'bg-slate-50' : ''} ${selectedAssignment ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                                        className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-400 text-sm font-bold relative ${isWorking ? 'bg-white text-slate-900' : 'bg-slate-200 text-slate-500'} ${selectedAssignment ? 'cursor-pointer hover:bg-blue-50' : ''}`}
                                         onClick={() => toggleAssignment(op.id, dateKey)}
                                     >
-                                        {/* Changed text color to be darker/more visible and slightly larger font */}
-                                        <span className="text-slate-800 font-bold text-xs">{shiftCode}</span>
+                                        {!isWorking && !assignment && (
+                                            <div className="absolute inset-0" style={{ 
+                                                backgroundImage: 'repeating-linear-gradient(45deg, #e2e8f0 0, #e2e8f0 2px, transparent 0, transparent 50%)',
+                                                backgroundSize: '4px 4px',
+                                                opacity: 0.3
+                                            }}></div>
+                                        )}
+
+                                        <span className="relative z-10">{shiftCode}</span>
                                         
                                         {assignment && (
                                             <div 
-                                                className="absolute inset-1 rounded border-2 flex items-center justify-center shadow-sm transition-all"
-                                                style={{ borderColor: assignment.color, backgroundColor: `${assignment.color}20` }}
+                                                className="absolute inset-1 rounded border-2 flex items-center justify-center shadow-sm transition-all z-10"
+                                                style={{ borderColor: assignment.color, backgroundColor: `${assignment.color}40` }}
                                                 title={assignment.name}
                                             >
                                             </div>
@@ -188,7 +198,7 @@ export const Assignments = () => {
                                         
                                         {/* Hover Preview for Eraser */}
                                         {selectedAssignment === 'CLEAR' && assignment && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-red-100/50 opacity-0 hover:opacity-100 text-red-600 z-10">
+                                            <div className="absolute inset-0 flex items-center justify-center bg-red-100/50 opacity-0 hover:opacity-100 text-red-600 z-20">
                                                 <X size={14} />
                                             </div>
                                         )}
@@ -196,7 +206,7 @@ export const Assignments = () => {
                                         {/* Hover Preview for Adding */}
                                         {selectedAssignment && selectedAssignment !== 'CLEAR' && !assignment && (
                                             <div 
-                                                className="absolute inset-1 rounded opacity-0 hover:opacity-40 border-2 border-dashed"
+                                                className="absolute inset-1 rounded opacity-0 hover:opacity-40 border-2 border-dashed z-20"
                                                 style={{ borderColor: state.assignments.find(a => a.id === selectedAssignment)?.color }}
                                             ></div>
                                         )}
