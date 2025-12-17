@@ -143,20 +143,20 @@ export const Assignments = () => {
             {/* Grid */}
             <div className="flex-1 overflow-auto planner-scroll cursor-default">
                 <div className="inline-block min-w-full align-middle">
-                    <div className="sticky top-0 z-20 flex bg-slate-100 border-b border-slate-400 shadow-sm">
-                        <div className="sticky left-0 w-48 bg-slate-100 border-r border-slate-400 flex items-center pl-4 font-bold text-slate-700 z-30 shadow-r h-10">
+                    <div className="sticky top-0 z-20 flex bg-slate-100 border-b border-slate-300 shadow-sm">
+                        <div className="sticky left-0 w-48 bg-slate-100 border-r border-slate-300 flex items-center pl-4 font-bold text-slate-700 z-30 shadow-r h-10">
                             Operatore
                         </div>
                         {days.map(d => (
-                            <div key={d.toString()} className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-400 text-xs font-bold ${isWeekend(d) ? 'bg-slate-200' : ''}`}>
+                            <div key={d.toString()} className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-300 text-xs font-bold ${isWeekend(d) ? 'bg-slate-200' : ''}`}>
                                 {format(d, 'd')}
                             </div>
                         ))}
                     </div>
 
                     {state.operators.filter(o => o.isActive).map(op => (
-                        <div key={op.id} className="flex border-b border-slate-400 hover:bg-slate-50">
-                            <div className="sticky left-0 w-48 bg-white border-r border-slate-400 flex items-center pl-4 py-2 z-10 shadow-r">
+                        <div key={op.id} className="flex border-b border-slate-300 hover:bg-slate-50">
+                            <div className="sticky left-0 w-48 bg-white border-r border-slate-300 flex items-center pl-4 py-2 z-10 shadow-r">
                                 <span className="font-medium text-slate-800 text-sm">{op.lastName} {op.firstName}</span>
                             </div>
                             {days.map(d => {
@@ -174,7 +174,7 @@ export const Assignments = () => {
                                 return (
                                     <div 
                                         key={d.toString()} 
-                                        className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-400 text-sm font-bold relative ${isWorking ? 'bg-white text-slate-900' : 'bg-slate-200 text-slate-500'} ${selectedAssignment ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                                        className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-300 text-sm relative ${isWorking ? 'bg-white font-bold text-slate-900' : 'bg-slate-200 text-slate-400'} ${selectedAssignment ? 'cursor-pointer hover:bg-blue-50' : ''}`}
                                         onClick={() => toggleAssignment(op.id, dateKey)}
                                     >
                                         {!isWorking && !assignment && (

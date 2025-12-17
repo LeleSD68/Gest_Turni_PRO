@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { useApp } from '../store';
 import { getMonthDays, formatDateKey, getEntry, calculateMatrixShift, validateCell, getShiftByCode, getSuggestions, parseISO, isOperatorEmployed, getItalianHolidayName, startOfMonth, startOfWeek, endOfWeek, subWeeks, addWeeks, endOfMonth, isItalianHoliday } from '../utils';
 import { format, isToday, isWeekend, addMonths, differenceInDays, addDays, isWithinInterval, isSameMonth, isSunday, isBefore, eachDayOfInterval, isSaturday } from 'date-fns';
-import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2, Send, Cloud, CloudOff, Loader2, CheckCircle, PartyPopper, Star, CheckCircle2, Users, FileClock, Calendar, Grid, Columns, Briefcase, MoveRight, CheckCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2, Send, Cloud, CloudOff, Loader2, CheckCircle, PartyPopper, Star, CheckCircle2, Users, FileClock, Calendar, Grid, Columns, Briefcase, MoveRight, CheckCheck, MessageSquare } from 'lucide-react';
 import { Button, Modal, Select, Input, Badge } from '../components/UI';
 import { PlannerEntry, ViewMode, ShiftType, SpecialEvent, CoverageConfig, DayNote, DayNoteType } from '../types';
 import { OperatorDetailModal } from '../components/OperatorDetailModal';
@@ -26,13 +26,13 @@ type LastOperation = {
 const ITALIAN_MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
 const ITALIAN_DAY_INITIALS = ['D', 'L', 'M', 'M', 'G', 'V', 'S'];
 
-const NOTE_TYPES: Record<DayNoteType, { icon: React.ElementType, color: string, label: string }> = {
-    INFO: { icon: StickyNote, color: 'text-amber-500', label: 'Nota' },
-    ALERT: { icon: AlertTriangle, color: 'text-red-500', label: 'Importante' },
-    EVENT: { icon: Star, color: 'text-blue-500', label: 'Evento' },
-    MEETING: { icon: Users, color: 'text-purple-500', label: 'Riunione' },
-    HOLIDAY: { icon: PartyPopper, color: 'text-pink-500', label: 'Festa' },
-    CHECK: { icon: CheckCircle2, color: 'text-emerald-500', label: 'Fatto' }
+const NOTE_TYPES: Record<DayNoteType, { icon: React.ElementType, color: string, label: string, bg: string, border: string }> = {
+    INFO: { icon: StickyNote, color: 'text-amber-600', label: 'Nota', bg: 'bg-amber-50', border: 'border-amber-200' },
+    ALERT: { icon: AlertTriangle, color: 'text-red-600', label: 'Urgenza', bg: 'bg-red-50', border: 'border-red-200' },
+    EVENT: { icon: Star, color: 'text-blue-600', label: 'Evento', bg: 'bg-blue-50', border: 'border-blue-200' },
+    MEETING: { icon: Users, color: 'text-purple-600', label: 'Meet', bg: 'bg-purple-50', border: 'border-purple-200' },
+    HOLIDAY: { icon: PartyPopper, color: 'text-pink-600', label: 'Festa', bg: 'bg-pink-50', border: 'border-pink-200' },
+    CHECK: { icon: CheckCircle2, color: 'text-emerald-600', label: 'Fatto', bg: 'bg-emerald-50', border: 'border-emerald-200' }
 };
 
 export const Planner = () => {
@@ -43,7 +43,7 @@ export const Planner = () => {
   const [viewSpan, setViewSpan] = useState<'MONTH' | 'WEEK'>('MONTH');
   const [selectedCell, setSelectedCell] = useState<{ opId: string; date: string } | null>(null);
   const [showCellReport, setShowCellReport] = useState(false);
-  const [editMode, setEditMode] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [isBulkEdit, setIsBulkEdit] = useState(false); 
   const [showPrevDays, setShowPrevDays] = useState(false);
   const [groupByMatrix, setGroupByMatrix] = useState(true);
@@ -106,6 +106,7 @@ export const Planner = () => {
   const [tempNote, setTempNote] = useState('');
 
   const [editingDayNote, setEditingDayNote] = useState<{ date: string; note: DayNote } | null>(null);
+  const [editingOperatorNote, setEditingOperatorNote] = useState<{ opId: string; name: string; text: string } | null>(null);
 
   const [multiSelection, setMultiSelection] = useState<{ opId: string, start: string, end: string } | null>(null);
   const [clipboard, setClipboard] = useState<string[] | null>(null);
@@ -157,7 +158,6 @@ export const Planner = () => {
       }
   }, [state.currentDate, showPrevDays, viewSpan]);
   
-  // ... (Filtering Logic - Omitted for brevity, unchanged) ...
   const filteredOperators = useMemo(() => {
       return state.operators.filter(op => {
           if (filterStatus === 'ACTIVE' && !op.isActive) return false;
@@ -268,30 +268,6 @@ export const Planner = () => {
       return parseFloat(diff.toFixed(2));
   };
 
-  // ... (useEffect for modals - Unchanged) ...
-  useEffect(() => {
-    if ((editMode || showCellReport) && selectedCell) {
-        const entry = getEntry(state, selectedCell.opId, selectedCell.date);
-        const matrixShift = calculateMatrixShift(state.operators.find(o => o.id === selectedCell.opId)!, selectedCell.date, state.matrices);
-        
-        const shiftCode = entry?.shiftCode ?? matrixShift ?? '';
-        const defaultShift = state.shiftTypes.find(s => s.code === shiftCode);
-        
-        setDraftShift(shiftCode);
-        setDraftNote(entry?.note ?? '');
-        setDraftVariationReason(entry?.variationReason ?? '');
-        setDraftCustomHours(entry?.customHours); 
-        setDraftSpecialEvents(entry?.specialEvents || []);
-        setIsSpecialMode((entry?.specialEvents && entry.specialEvents.length > 0) || false);
-        setNewSpecialHours('');
-        setNewSpecialStart('');
-        setNewSpecialEnd('');
-        setNewSpecialMode('ADDITIVE');
-        setNewSpecialType('Straordinario');
-        setShowSuggest(false);
-    }
-  }, [editMode, showCellReport, selectedCell, state]);
-
   useEffect(() => {
       if (newSpecialStart && newSpecialEnd) {
           const dur = calculateDuration(newSpecialStart, newSpecialEnd);
@@ -320,14 +296,6 @@ export const Planner = () => {
       }
   }, [state.currentDate, days]);
 
-  const getActiveShift = (opId: string, date: string) => {
-    const op = state.operators.find(o => o.id === opId);
-    if (!op) return '';
-    const entry = getEntry(state, opId, date);
-    if (entry) return entry.shiftCode;
-    return calculateMatrixShift(op, date, state.matrices) || '';
-  };
-
   const getContrastColor = (hexColor?: string) => {
       if (!hexColor) return 'text-slate-700';
       const r = parseInt(hexColor.substring(1, 3), 16);
@@ -337,11 +305,10 @@ export const Planner = () => {
       return yiq >= 128 ? 'text-slate-900' : 'text-white';
   };
 
-  // --- Handlers (Clear, Prev, Next, Today, Drag&Drop) ---
   const clearSelection = () => {
     setSelectedCell(null);
-    setEditMode(false);
     setShowCellReport(false);
+    setShowEditModal(false);
     setTooltipPos(null);
     setMultiSelection(null);
     setCellPopupPosition(null);
@@ -385,7 +352,6 @@ export const Planner = () => {
       return `${ITALIAN_MONTHS[date.getMonth()]} ${date.getFullYear()}`;
   };
 
-  // --- Drag & Drop Handlers (handleDragStart, handleDragOver, etc.) ---
   const handleDragStart = (e: React.DragEvent, opId: string, date: string, isEmployed: boolean) => {
     if (!isEmployed) {
         e.preventDefault();
@@ -414,7 +380,6 @@ export const Planner = () => {
     setDragOverCell(null);
   };
 
-  // --- REVISED HANDLE DROP WITH PROMPT ---
   const handleDrop = (e: React.DragEvent, targetOpId: string, targetDate: string, isEmployed: boolean) => {
     e.preventDefault();
     setDragOverCell(null); 
@@ -442,7 +407,6 @@ export const Planner = () => {
         return;
     }
 
-    // Set PROMPT state instead of executing immediately
     setDragActionPrompt({
         source: { 
             opId: sourceOpId, 
@@ -463,19 +427,17 @@ export const Planner = () => {
     setDraggingCell(null);
   };
 
-  // --- RESOLVE DRAG ACTION ---
   const resolveDragAction = (action: 'SWAP' | 'COPY' | 'MOVE') => {
       if (!dragActionPrompt) return;
       const { source, target } = dragActionPrompt;
       const updates: PlannerEntry[] = [];
 
-      // 1. Prepare Target Update (Common to all: Target receives Source Shift)
       const targetViolation = validateCell(state, target.opId, target.date, source.code);
       updates.push({
           operatorId: target.opId,
           date: target.date,
           shiftCode: source.code,
-          note: source.entry?.note, // Move note too
+          note: source.entry?.note, 
           isManual: true,
           violation: targetViolation || undefined,
           variationReason: action === 'SWAP' ? 'Scambio' : (action === 'MOVE' ? 'Spostamento' : 'Copia'),
@@ -483,9 +445,7 @@ export const Planner = () => {
           specialEvents: source.entry?.specialEvents
       });
 
-      // 2. Handle Source Update based on Action
       if (action === 'SWAP') {
-          // Source receives Target Shift
           const sourceViolation = validateCell(state, source.opId, source.date, target.code);
           updates.push({
               operatorId: source.opId,
@@ -499,18 +459,15 @@ export const Planner = () => {
               specialEvents: target.entry?.specialEvents
           });
       } else if (action === 'MOVE') {
-          // Source becomes EMPTY/RESET (Standard Drag & Drop Move)
           updates.push({
               operatorId: source.opId,
               date: source.date,
-              shiftCode: '', // Empty to override matrix or just clear
+              shiftCode: '', 
               isManual: true,
               violation: undefined
           });
       }
-      // If COPY, Source remains untouched (no update needed for source)
 
-      // 3. Dispatch & Log
       if (updates.length > 0) {
           dispatch({ type: 'BATCH_UPDATE', payload: updates });
           
@@ -532,7 +489,6 @@ export const Planner = () => {
       setDragActionPrompt(null);
   };
 
-  // ... (Other Handlers: Copy/Paste, Bulk Assign, Matrix Apply, Exports) ...
   const handleCopySelection = () => {
     if (!multiSelection) return;
     const { opId, start, end } = multiSelection;
@@ -598,9 +554,9 @@ export const Planner = () => {
       dispatch({ type: 'ADD_LOG', payload: { id: crypto.randomUUID(), timestamp: Date.now(), operatorId: opId, actionType: 'UPDATE', reason: shiftCode === 'RESET' ? 'Ripristino Matrice (Multi)' : (shiftCode === '' ? 'Svuota Cella (Multi)' : `Assegnazione Multipla (${shiftCode})`), user: 'CurrentUser', targetDate: start } });
       setMultiSelection(null);
       setMultiSelectPopupPosition(null);
+      setShowBulkModal(false);
   };
 
-  // --- NEW: Handle Confirm/Consolidate Selection ---
   const handleConfirmSelection = () => {
     if (!multiSelection) return;
     const { opId, start, end } = multiSelection;
@@ -614,10 +570,8 @@ export const Planner = () => {
 
     daysRange.forEach(d => {
         const dateKey = formatDateKey(d);
-        // Check if manual entry already exists
         const entry = getEntry(state, op.id, dateKey);
         
-        // Only confirm if it's NOT already manual/confirmed
         if (!entry) {
             const matrixCode = calculateMatrixShift(op, dateKey, state.matrices);
             if (matrixCode) {
@@ -626,7 +580,7 @@ export const Planner = () => {
                      operatorId: opId,
                      date: dateKey,
                      shiftCode: matrixCode,
-                     isManual: true, // Makes it solid/confirmed
+                     isManual: true, 
                      violation: violation || undefined
                  });
             }
@@ -694,10 +648,27 @@ export const Planner = () => {
       setEditingDayNote({ date: dateKey, note: noteObj });
   };
 
-  // ... (handleExportForGoogleSheets, handleExportCSV, handleCellClick, handleRightClick, handleCellDoubleClick, handleConfirmMatrixAssignment) ...
-  // [Code kept same as input, see full file for brevity]
-  const handleExportForGoogleSheets = async () => { /* ... */ };
-  const handleExportCSV = () => { /* ... */ };
+  const handleExportForGoogleSheets = async () => {};
+  const handleExportCSV = () => {
+      const rows = [['Operatore', ...days.map(d => format(d, 'yyyy-MM-dd'))]];
+      state.operators.filter(o => o.isActive).forEach(op => {
+          const row = [`${op.lastName} ${op.firstName}`];
+          days.forEach(d => {
+              const dk = formatDateKey(d);
+              const e = getEntry(state, op.id, dk);
+              const m = calculateMatrixShift(op, dk, state.matrices);
+              row.push(e?.shiftCode || m || '');
+          });
+          rows.push(row);
+      });
+      const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI(csvContent));
+      link.setAttribute("download", `turni_export_${format(new Date(), 'yyyyMMdd')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
   
   const handleCellClick = (e: React.MouseEvent, opId: string, date: string, isEmployed: boolean) => {
     if (!isEmployed) return;
@@ -727,8 +698,18 @@ export const Planner = () => {
     setSelectedCell({ opId, date });
     setMultiSelection(null);
     setMultiSelectPopupPosition(null);
-    setEditMode(false);
     setShowCellReport(false); 
+    
+    // Init drafts so popup shows current state
+    const op = state.operators.find(o => o.id === opId);
+    const entry = getEntry(state, opId, date);
+    const mx = op ? calculateMatrixShift(op, date, state.matrices) : null;
+    setDraftShift(entry?.shiftCode ?? mx ?? '');
+    setDraftNote(entry?.note ?? '');
+    setDraftVariationReason(entry?.variationReason ?? '');
+    setDraftCustomHours(entry?.customHours); 
+    setDraftSpecialEvents(entry?.specialEvents || []);
+    setIsSpecialMode((entry?.specialEvents && entry.specialEvents.length > 0) || false);
     
     // SMART POPUP POSITIONING
     const popupHeight = 250;
@@ -787,15 +768,32 @@ export const Planner = () => {
   };
 
   const handleCellDoubleClick = () => {
-    if (!isMatrixView) {
-        setEditMode(true);
-        setShowCellReport(false);
+    if (!isMatrixView && selectedCell) {
+        // Double click still opens the detailed modal, relying on the fact that selectedCell is set
+        // Re-initialize drafts to be safe, though handleCellClick usually ran first.
+        const op = state.operators.find(o => o.id === selectedCell.opId);
+        const entry = getEntry(state, selectedCell.opId, selectedCell.date);
+        const matrixShift = op ? calculateMatrixShift(op, selectedCell.date, state.matrices) : null;
+        
+        const currentCode = entry?.shiftCode ?? matrixShift ?? '';
+        
+        setDraftShift(currentCode);
+        setDraftNote(entry?.note ?? '');
+        setDraftVariationReason(entry?.variationReason ?? '');
+        setDraftCustomHours(entry?.customHours); 
+        setDraftSpecialEvents(entry?.specialEvents || []);
+        
+        // Reset special inputs
+        setNewSpecialType('Straordinario');
+        setNewSpecialStart('');
+        setNewSpecialEnd('');
+        setNewSpecialHours('');
+
+        setShowEditModal(true);
         setCellPopupPosition(null);
     }
   };
 
-  const handleConfirmMatrixAssignment = () => { /* ... */ };
-  
   const saveChanges = () => {
       if (!selectedCell) return;
       const targets: string[] = [];
@@ -834,10 +832,42 @@ export const Planner = () => {
       clearSelection();
   };
 
-  const handleAssignTo = (targetOpId: string) => { /* ... */ }
+  const addSpecialEvent = () => {
+      if (newSpecialHours === '' && newSpecialType !== 'Gettone') return; // Gettone usually 0 hours or fixed
+      
+      const hours = typeof newSpecialHours === 'number' ? newSpecialHours : 0;
+      const newEvent: SpecialEvent = {
+          id: crypto.randomUUID(),
+          type: newSpecialType,
+          hours: hours,
+          startTime: newSpecialStart,
+          endTime: newSpecialEnd,
+          mode: newSpecialMode // 'ADDITIVE' default
+      };
+      
+      setDraftSpecialEvents([...draftSpecialEvents, newEvent]);
+      setNewSpecialHours('');
+      setNewSpecialStart('');
+      setNewSpecialEnd('');
+  };
+
+  const toggleGettone = () => {
+    const hasGettone = draftSpecialEvents.some(e => e.type === 'Gettone');
+    if (hasGettone) {
+        setDraftSpecialEvents(prev => prev.filter(e => e.type !== 'Gettone'));
+    } else {
+        setDraftSpecialEvents(prev => [...prev, {
+            id: crypto.randomUUID(),
+            type: 'Gettone',
+            hours: 0,
+            startTime: '',
+            endTime: '',
+            mode: 'ADDITIVE'
+        }]);
+    }
+  };
 
   const renderCell = (op: any, day: Date) => {
-    // ... [Cell Rendering Logic kept mostly same] ...
     const dateKey = formatDateKey(day);
     const isEmployed = isOperatorEmployed(op, dateKey);
     const entry = getEntry(state, op.id, dateKey);
@@ -852,23 +882,18 @@ export const Planner = () => {
     let isMatrixOverride = false;
     let manualOverrideCode = '';
     
-    // Crosshair logic
     const isRowHovered = hoveredOpId === op.id;
     const isColHovered = hoveredDate === dateKey;
     const isHoveredCell = hoveredOpId === op.id && hoveredDate === dateKey;
     
-    // Holiday & Saturday Logic
     const isRedDay = isItalianHoliday(day);
     const isSat = isSaturday(day) && !isRedDay;
-
-    // Use subtle highlight for crosshair track, stronger for exact cell
-    // Note: isCrosshairActive logic moved directly into className logic below
 
     if (!isEmployed) {
         return (
              <div 
                 key={dateKey}
-                className="flex-1 min-w-[44px] md:min-w-0 border-r border-b border-slate-400 h-10 md:h-8 bg-slate-100 relative group"
+                className="flex-1 min-w-[44px] md:min-w-0 border-r border-b border-slate-300 h-10 md:h-8 bg-slate-100 relative group"
                 style={{ 
                     backgroundImage: 'repeating-linear-gradient(45deg, #e2e8f0 0, #e2e8f0 2px, transparent 0, transparent 50%)',
                     backgroundSize: '6px 6px',
@@ -904,7 +929,6 @@ export const Planner = () => {
     const isSelected = selectedCell?.opId === op.id && selectedCell?.date === dateKey;
     const isPendingTarget = pendingSwap?.target.opId === op.id && pendingSwap?.target.date === dateKey;
     
-    // New Drag State
     const isDragging = draggingCell?.opId === op.id && draggingCell?.date === dateKey;
     const isDragOver = dragOverCell?.opId === op.id && dragOverCell?.date === dateKey;
 
@@ -924,17 +948,13 @@ export const Planner = () => {
          if (['M6','M7','M7-','M8','M8-'].includes(displayCode)) checkKey = 'M8';
          if (['P','P-'].includes(displayCode)) checkKey = 'P';
 
-         const { mainCount, supportCount } = getGroupedCoverage(dateKey, checkKey);
+         const { mainCount } = getGroupedCoverage(dateKey, checkKey);
          const config = state.config.coverage[checkKey]; 
          
          if (config) {
-            const mode = config.mode || 'VISUAL';
-            let effectiveCount = mainCount;
-            if (mode === 'SUM') effectiveCount = mainCount + supportCount;
-            
-            if (effectiveCount < config.min) coverageStatus = 'CRITICAL';
-            else if (effectiveCount < config.optimal) coverageStatus = 'LOW';
-            else if (effectiveCount > config.optimal) coverageStatus = 'SURPLUS';
+            if (mainCount < config.min) coverageStatus = 'CRITICAL';
+            else if (mainCount < config.optimal) coverageStatus = 'LOW';
+            else if (mainCount > config.optimal) coverageStatus = 'SURPLUS';
             else coverageStatus = 'ADEQUATE';
          }
     }
@@ -949,7 +969,6 @@ export const Planner = () => {
     const nextEntry = getEntry(state, op.id, nextDateKey);
     const isConnectedRight = !isMatrixView && entry?.isManual && nextEntry?.isManual && entry.shiftCode === nextEntry.shiftCode && entry.shiftCode !== 'OFF' && entry.shiftCode !== '';
 
-    // Calculate drop feedback style
     let dropFeedbackClass = '';
     if (isDragOver && !isDragging) {
         const targetEntry = getEntry(state, op.id, dateKey);
@@ -959,18 +978,8 @@ export const Planner = () => {
         
         dropFeedbackClass = isTargetOccupied 
             ? 'ring-2 ring-amber-400 bg-amber-50 z-40' 
-            : 'ring-2 ring-green-500 bg-green-50 z-40';
+            : 'ring-2 ring-green-50 z-40';
     }
-
-    // Determine standard highlight for hover track
-    const highlightClass = (isRowHovered || isColHovered) && !isHoveredCell && !isSelected && !shiftType && !isRedDay 
-        ? 'bg-blue-100/50' // Stronger hover effect
-        : '';
-    
-    // Determine border for holidays
-    const borderClass = isRedDay 
-        ? 'border-x-2 border-x-red-200' 
-        : 'border-r border-slate-400';
 
     return (
       <div 
@@ -992,11 +1001,11 @@ export const Planner = () => {
             filter: !isCurrentMonth && viewSpan === 'MONTH' ? 'grayscale(100%) opacity(0.6)' : undefined
         }}
         className={`
-          flex-1 min-w-[44px] md:min-w-0 ${borderClass} border-b border-slate-400 text-xs md:text-sm flex items-center justify-center relative transition-all h-10 md:h-8
+          flex-1 min-w-[44px] md:min-w-0 border-r border-slate-300 border-b border-slate-300 text-xs md:text-sm flex items-center justify-center relative transition-all h-10 md:h-8
           ${!isCurrentMonth && viewSpan === 'MONTH' ? 'bg-slate-100/50 text-slate-400' : isToday(day) ? 'bg-blue-50' : (isRedDay ? 'bg-red-50/40' : (isSat ? 'bg-slate-50/50' : ''))}
           ${isPast && highlightPast ? 'opacity-30 grayscale bg-slate-100' : ''}
-          ${isHoveredCell ? 'ring-2 ring-inset ring-blue-400 z-30 font-bold' : ''} 
-          ${highlightClass}
+          ${isHoveredCell ? 'ring-2 ring-inset ring-blue-400 z-30' : ''} 
+          ${(isRowHovered || isColHovered) && !isHoveredCell && !isSelected && !shiftType && !isRedDay ? 'bg-blue-50/40' : ''}
           ${(isRowHovered || isColHovered) && shiftType && !isHoveredCell ? 'brightness-95' : ''}
           ${isSelected ? 'ring-4 ring-violet-600 ring-offset-2 ring-offset-white z-50 shadow-2xl scale-105 opacity-100 grayscale-0' : ''}
           ${isMultiSelected ? 'ring-inset ring-2 ring-blue-600 bg-blue-300/60 z-20' : ''}
@@ -1053,10 +1062,8 @@ export const Planner = () => {
 
   return (
     <div className="flex flex-col h-full bg-white w-full overflow-hidden" onClick={clearSelection}>
-      {/* ... (Existing Print Previews, Toolbar, etc. kept same, only Modal below is new) ... */}
       {showPrintPreview && (
         <div className="fixed inset-0 z-[100] bg-white overflow-auto flex flex-col animate-in fade-in duration-200">
-           {/* ... (Existing Print Preview Content) ... */}
            <div className="shrink-0 p-4 border-b bg-slate-50 flex justify-between items-center no-print sticky top-0 shadow-sm z-50">
               <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                  <Printer className="text-blue-600"/> Anteprima di Stampa
@@ -1101,7 +1108,6 @@ export const Planner = () => {
         </div>
       )}
 
-      {/* Toolbar & Rest of Grid */}
       {!showPrintPreview && (
           <div className="print-only hidden print-area">
              {printLayoutMode === 'VISUAL' ? <PrintLayout /> : <TimesheetPrintLayout />}
@@ -1128,7 +1134,6 @@ export const Planner = () => {
         `} 
         onClick={e => e.stopPropagation()}
       >
-          {/* ...Toolbar Content... */}
           <div className="flex items-center gap-2 min-w-0">
             <button
                 onClick={() => saveToCloud(true)}
@@ -1162,7 +1167,6 @@ export const Planner = () => {
                     </button>
                 </div>
 
-                {/* Date Navigation & View Toggle */}
                 <div className="flex items-center bg-slate-100 rounded-lg p-1 shrink-0">
                     <div className="flex mr-2 bg-white rounded shadow-sm">
                         <button 
@@ -1279,21 +1283,19 @@ export const Planner = () => {
         </div>
       </div>
 
-      {/* Grid Container */}
       <div 
         ref={scrollContainerRef}
         className="flex-1 flex flex-col overflow-hidden bg-white relative no-print touch-pan-x touch-pan-y"
         onMouseLeave={() => { setHoveredDate(null); setHoveredOpId(null); }}
       >
-          {/* ... Grid Content ... */}
           <div className="flex-1 overflow-auto relative" ref={gridScrollRef}>
              <div className="min-w-max">
                 {/* Headers */}
-                <div className="flex shrink-0 h-10 bg-slate-100 border-b border-slate-400 shadow-sm z-30 sticky top-0">
-                    <div className="w-32 md:w-48 shrink-0 bg-slate-100 border-r border-slate-400 flex items-center pl-2 md:pl-4 font-bold text-slate-700 text-xs md:text-sm sticky left-0 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                <div className="flex shrink-0 h-10 bg-slate-100 border-b border-slate-300 shadow-sm z-30 sticky top-0">
+                    <div className="w-32 md:w-48 shrink-0 bg-slate-100 border-r border-slate-300 flex items-center pl-2 md:pl-4 font-bold text-slate-700 text-xs md:text-sm sticky left-0 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                         Operatore
                     </div>
-                    <div className="w-[40px] md:w-[60px] shrink-0 flex items-center justify-center font-bold text-[10px] md:text-xs text-slate-600 border-r border-slate-400 bg-slate-50 z-30 relative group">
+                    <div className="w-[40px] md:w-[60px] shrink-0 flex items-center justify-center font-bold text-[10px] md:text-xs text-slate-600 border-r bg-slate-50 z-30 relative group">
                         <span>Ore</span>
                         {!isMatrixView && viewSpan === 'MONTH' && (
                             <button
@@ -1306,26 +1308,22 @@ export const Planner = () => {
                     </div>
                     {days.map(d => {
                         const dateKey = formatDateKey(d);
-                        const isRedDay = isItalianHoliday(d); // Holidays & Sundays
-                        const isSat = isSaturday(d) && !isRedDay; // Ordinary Saturday (not Holiday)
+                        const isRedDay = isItalianHoliday(d); 
+                        const isSat = isSaturday(d) && !isRedDay; 
                         const isPast = isBefore(d, new Date(new Date().setHours(0,0,0,0)));
                         const isHovered = dateKey === hoveredDate;
                         const isCurrentMonth = isSameMonth(d, parseISO(state.currentDate));
                         
-                        // Check for Day Note
                         const note = state.dayNotes[dateKey];
                         const noteType = (typeof note === 'object' && note?.type) ? note.type : (note ? 'INFO' : null);
                         const NoteIcon = noteType ? NOTE_TYPES[noteType].icon : null;
                         const noteColor = noteType ? NOTE_TYPES[noteType].color : '';
-                        
-                        // Header specific border logic
-                        const headerBorderClass = isRedDay ? 'border-x-2 border-x-red-200' : 'border-r border-slate-400';
 
                         return (
                           <div 
                                key={d.toString()} 
                                id={`day-header-${dateKey}`}
-                               className={`flex-1 min-w-[44px] md:min-w-0 flex flex-col items-center justify-center ${headerBorderClass} text-[10px] md:text-xs overflow-hidden relative cursor-pointer transition-colors group 
+                               className={`flex-1 min-w-[44px] md:min-w-0 flex flex-col items-center justify-center border-r border-slate-300 text-[10px] md:text-xs overflow-hidden relative cursor-pointer transition-colors group 
                                ${isRedDay ? 'bg-red-50/80 text-red-700 font-bold' : (isSat ? 'bg-slate-100 text-slate-700' : 'text-slate-600')} 
                                ${isToday(d) ? 'bg-blue-100 font-bold text-blue-700' : ''} 
                                ${!isCurrentMonth && viewSpan === 'MONTH' ? 'bg-slate-100 opacity-60 grayscale' : ''} 
@@ -1335,209 +1333,529 @@ export const Planner = () => {
                                onMouseEnter={() => setHoveredDate(dateKey)}
                           >
                             <span className={isRedDay ? 'text-red-700 font-bold' : ''}>{ITALIAN_DAY_INITIALS[d.getDay()]}</span>
-                            <span className={`text-xs md:text-sm font-semibold ${isRedDay ? 'text-red-700' : ''}`}>{format(d, 'd')}</span>
+                            <span className={`text-sm md:text-base font-semibold ${isRedDay ? 'text-red-700' : ''}`}>{format(d, 'd')}</span>
                             
-                            {/* Note Icon Indicator */}
                             {NoteIcon && <div className="absolute top-0.5 right-0.5"><NoteIcon size={10} className={noteColor} /></div>}
                           </div>
                         );
                     })}
                 </div>
-                {sortedGroupKeys.map(groupKey => (
-                    <Fragment key={groupKey}>
-                        {groupByMatrix && groupKey !== 'all' && (
-                            <div className="bg-slate-100/80 border-b border-slate-300 px-4 py-1 text-xs font-bold text-slate-500 uppercase sticky left-0 z-20 flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-slate-400"></div>
-                                {groupKey === 'none' ? 'Nessuna Matrice' : (state.matrices.find(m => m.id === groupKey)?.name || 'Sconosciuto')}
-                            </div>
-                        )}
-                        {groupedOperators[groupKey].map(op => (
-                            <div key={op.id} className={`flex h-10 md:h-8 border-b border-slate-200 hover:bg-slate-50 transition-colors ${hoveredOpId === op.id ? 'bg-blue-100/20' : ''}`}>
-                                <div 
-                                    className={`w-32 md:w-48 shrink-0 ${hoveredOpId === op.id ? 'bg-blue-100 text-blue-800 font-bold' : 'bg-white'} border-r border-slate-400 flex items-center pl-2 md:pl-4 font-medium text-slate-700 text-xs md:text-sm sticky left-0 z-20 cursor-pointer hover:text-blue-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] truncate transition-colors`}
-                                    onClick={() => setDetailsOpId(op.id)}
-                                    onMouseEnter={() => setHoveredOpId(op.id)}
-                                >
-                                    <span className="truncate">{op.lastName} {op.firstName}</span>
-                                </div>
-                                <div className="w-[40px] md:w-[60px] shrink-0 border-r border-slate-400 flex items-center justify-center text-[10px] md:text-xs font-mono text-slate-500 bg-slate-50/50">
-                                    {/* Placeholder for hours sum */}
-                                    -
-                                </div>
-                                {days.map(d => renderCell(op, d))}
-                            </div>
-                        ))}
-                    </Fragment>
-                ))}
+
+                {/* Operator Rows */}
+                <div className="flex-1 min-w-max">
+                  {sortedGroupKeys.map(groupKey => {
+                      const groupOps = groupedOperators[groupKey];
+                      if (!groupOps || groupOps.length === 0) return null;
+                      
+                      const matrixId = groupKey;
+                      const matrix = state.matrices.find(m => m.id === matrixId);
+                      const groupName = matrix ? matrix.name : 'Nessuna Matrice / Altro';
+                      const groupColor = matrix ? matrix.color : '#f1f5f9';
+
+                      return (
+                          <React.Fragment key={groupKey}>
+                              {groupByMatrix && (
+                                  <div className="sticky left-0 z-20 bg-slate-100 border-b border-slate-300 px-4 py-1 text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                      <div className="w-2 h-2 rounded-full" style={{ background: matrix?.color || '#cbd5e1' }} />
+                                      {groupName} ({groupOps.length})
+                                  </div>
+                              )}
+                              
+                              {groupOps.map(op => {
+                                  // Stats Calculation
+                                  const totalHours = days.reduce((acc, d) => {
+                                      const k = formatDateKey(d);
+                                      if (!isOperatorEmployed(op, k)) return acc;
+                                      const entry = getEntry(state, op.id, k);
+                                      const mx = calculateMatrixShift(op, k, state.matrices);
+                                      const code = entry?.shiftCode || mx || '';
+                                      const st = state.shiftTypes.find(s => s.code === code);
+                                      let h = 0;
+                                      if (entry?.customHours !== undefined) h = entry.customHours;
+                                      else if (st) {
+                                          if (st.inheritsHours) {
+                                              const mxCode = calculateMatrixShift(op, k, state.matrices);
+                                              const mxSt = state.shiftTypes.find(s => s.code === mxCode);
+                                              h = mxSt?.hours || 0;
+                                          } else {
+                                              h = st.hours;
+                                          }
+                                      }
+                                      return acc + h;
+                                  }, 0);
+
+                                  return (
+                                      <div key={op.id} className="flex border-b border-slate-300 hover:bg-slate-50 transition-colors h-10 md:h-8">
+                                          {/* Name Column */}
+                                          <div 
+                                              className={`w-32 md:w-48 shrink-0 border-r border-slate-300 flex items-center justify-between pl-2 md:pl-4 pr-1 sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] group/op-name transition-colors ${hoveredOpId === op.id ? 'bg-blue-50' : 'bg-white'}`}
+                                          >
+                                              <div className="flex items-center truncate cursor-pointer hover:text-blue-600 flex-1" onClick={() => setDetailsOpId(op.id)}>
+                                                  <div className={`w-1.5 h-1.5 rounded-full mr-2 shrink-0 ${op.isActive ? 'bg-emerald-500' : 'bg-red-300'}`} />
+                                                  <span className="font-medium text-sm md:text-base truncate text-slate-700">{op.lastName} {op.firstName}</span>
+                                              </div>
+                                              
+                                              <button 
+                                                  onClick={(e) => { e.stopPropagation(); setEditingOperatorNote({ opId: op.id, name: `${op.lastName} ${op.firstName}`, text: op.notes || '' }); }}
+                                                  className={`p-1.5 rounded-md transition-colors ${op.notes ? 'text-blue-600 bg-blue-50' : 'text-slate-300 opacity-0 group-hover/op-name:opacity-100 hover:bg-slate-100 hover:text-slate-500'}`}
+                                                  title="Note Personali"
+                                              >
+                                                  <MessageSquare size={14} className={op.notes ? "fill-blue-100" : ""} />
+                                              </button>
+                                          </div>
+                                          
+                                          {/* Stats Column */}
+                                          <div className="w-[40px] md:w-[60px] shrink-0 border-r border-slate-300 flex items-center justify-center text-[10px] md:text-xs font-semibold text-slate-600 bg-slate-50 relative z-10">
+                                              {totalHours > 0 ? Math.round(totalHours) : '-'}
+                                          </div>
+
+                                          {/* Days */}
+                                          {days.map(d => renderCell(op, d))}
+                                      </div>
+                                  );
+                              })}
+                          </React.Fragment>
+                      );
+                  })}
+                </div>
              </div>
           </div>
-      </div>
+          
+          {/* Compact Cell Popup Editor */}
+          {selectedCell && cellPopupPosition && !isMatrixView && (
+              <div 
+                  className="fixed z-[60] bg-white/95 backdrop-blur-sm rounded-lg shadow-2xl border border-slate-200 p-3 w-[280px] animate-in fade-in zoom-in-95 flex flex-col gap-2"
+                  style={{ 
+                      left: cellPopupPosition.x, 
+                      top: cellPopupPosition.y, 
+                      transform: 'translateX(-50%)'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+              >
+                  {/* Summary Section */}
+                  {(() => {
+                      const op = state.operators.find(o => o.id === selectedCell.opId);
+                      const entry = getEntry(state, selectedCell.opId, selectedCell.date);
+                      const matrixShift = op ? calculateMatrixShift(op, selectedCell.date, state.matrices) : null;
+                      const currentCode = entry?.shiftCode ?? matrixShift ?? '';
+                      const shiftType = state.shiftTypes.find(s => s.code === currentCode);
+                      
+                      let hoursDisplay = '';
+                      if (entry?.customHours !== undefined) hoursDisplay = `${entry.customHours}h`;
+                      else if (shiftType?.inheritsHours && matrixShift) {
+                          const ms = state.shiftTypes.find(s => s.code === matrixShift);
+                          hoursDisplay = `${ms?.hours || 0}h`;
+                      } else if (shiftType) {
+                          hoursDisplay = `${shiftType.hours}h`;
+                      }
 
-      {/* --- Modals and Popups --- */}
-      {selectedCell && !editMode && cellPopupPosition && (
-        <div 
-            className="fixed bg-white rounded-lg shadow-xl border border-slate-200 z-[60] flex flex-col animate-in fade-in zoom-in-95 duration-200"
-            style={{ 
-                left: cellPopupPosition.x, 
-                top: cellPopupPosition.y,
-                transform: 'translateX(-50%)',
-                width: '300px'
-            }}
-        >
-            {/* Popup Content */}
-            {/* ... */}
-        </div>
-      )}
-      
-      <OperatorDetailModal 
-        isOpen={!!detailsOpId} 
-        onClose={() => setDetailsOpId(null)} 
-        operatorId={detailsOpId || ''} 
-      />
+                      const isManual = entry?.isManual && entry?.shiftCode;
+                      const hasNote = !!entry?.note;
 
-      <Modal isOpen={showBulkModal} onClose={() => setShowBulkModal(false)} title="Assegnazione Multipla">
-          <div className="space-y-4">
-              <div className="text-sm text-slate-600">
-                  Seleziona il turno da applicare ai giorni selezionati ({multiSelection ? `${format(parseISO(multiSelection.start), 'dd/MM')} - ${format(parseISO(multiSelection.end), 'dd/MM')}` : ''}).
-              </div>
-              <div className="grid grid-cols-3 gap-2 max-h-[60vh] overflow-y-auto p-1">
-                  {state.shiftTypes.map(s => (
-                      <button
-                          key={s.code}
-                          onClick={() => handleBulkAssign(s.code)}
-                          className="p-2 text-xs font-bold border rounded hover:bg-slate-50 flex flex-col items-center justify-center gap-1 transition-colors"
-                          style={{ borderColor: s.color, backgroundColor: `${s.color}10` }}
-                      >
-                          <div className="w-6 h-6 rounded-md flex items-center justify-center text-slate-800 shadow-sm" style={{ backgroundColor: s.color }}>
-                              {s.code}
+                      return (
+                          <div className="mb-1 border-b border-slate-100 pb-2">
+                              <div className="flex justify-between items-start mb-1">
+                                  <div>
+                                      <div className="font-bold text-slate-800 text-base truncate w-40">{op?.lastName} {op?.firstName}</div>
+                                      <div className="text-xs text-slate-500 uppercase font-semibold">{format(parseISO(selectedCell.date), 'dd MMMM')}</div>
+                                  </div>
+                                  <div className={`px-2 py-1 rounded text-sm font-black shadow-sm border border-black/5 ${getContrastColor(shiftType?.color)}`} style={{backgroundColor: shiftType?.color || '#f1f5f9'}}>
+                                      {currentCode || 'OFF'}
+                                  </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2 text-xs text-slate-600 mt-1.5 items-center">
+                                   {isManual && <span className="bg-amber-100 text-amber-700 px-1 rounded font-medium border border-amber-200">Manuale</span>}
+                                   <span>Matrice: <strong>{matrixShift || '-'}</strong></span>
+                                   <span>Ore: <strong>{hoursDisplay || '0h'}</strong></span>
+                              </div>
+                              {hasNote && (
+                                  <div className="mt-1.5 text-xs italic text-slate-500 truncate bg-slate-50 p-1 rounded border border-slate-100">
+                                      "{entry.note}"
+                                  </div>
+                              )}
                           </div>
-                          <span className="truncate w-full text-center" title={s.name}>{s.name}</span>
-                      </button>
-                  ))}
-                  <button
-                      onClick={() => handleBulkAssign('')}
-                      className="p-2 text-xs font-bold border rounded hover:bg-slate-50 flex flex-col items-center justify-center gap-1 transition-colors text-slate-500 border-slate-300"
-                  >
-                      <div className="w-6 h-6 rounded-md flex items-center justify-center bg-slate-100 border border-slate-200">
-                         <Eraser size={14} />
-                      </div>
-                      <span>Svuota</span>
-                  </button>
-                  <button
-                      onClick={() => handleBulkAssign('RESET')}
-                      className="p-2 text-xs font-bold border rounded hover:bg-red-50 flex flex-col items-center justify-center gap-1 transition-colors text-red-600 border-red-200"
-                  >
-                      <div className="w-6 h-6 rounded-md flex items-center justify-center bg-red-100 border border-red-200">
-                         <RotateCcw size={14} />
-                      </div>
-                      <span>Ripristina</span>
-                  </button>
-              </div>
-              <div className="flex justify-end pt-2">
-                  <Button variant="ghost" onClick={() => setShowBulkModal(false)}>Annulla</Button>
-              </div>
-          </div>
-      </Modal>
-
-      <Modal isOpen={showMatrixModal} onClose={() => setShowMatrixModal(false)} title="Applica Matrice">
-          <div className="space-y-4">
-              <div className="bg-blue-50 p-3 rounded border border-blue-100 text-sm text-blue-800 flex items-start gap-2">
-                  <Info size={16} className="mt-0.5 shrink-0" />
-                  <div>
-                      L'applicazione della matrice sovrascriverà i turni esistenti e aggiornerà lo storico dell'operatore.
-                  </div>
-              </div>
-              
-              <Select 
-                  label="Operatore" 
-                  value={applyMatrixOpId} 
-                  onChange={(e) => setApplyMatrixOpId(e.target.value)}
-                  disabled={!!selectedCell}
-              >
-                  <option value="">Seleziona Operatore...</option>
-                  {state.operators.map(op => (
-                      <option key={op.id} value={op.id}>{op.lastName} {op.firstName}</option>
-                  ))}
-              </Select>
-
-              <Select 
-                  label="Matrice da Applicare" 
-                  value={applyMatrixId} 
-                  onChange={(e) => setApplyMatrixId(e.target.value)}
-              >
-                  <option value="">Seleziona Matrice...</option>
-                  {state.matrices.map(m => (
-                      <option key={m.id} value={m.id}>{m.name} ({m.sequence.length} turni)</option>
-                  ))}
-              </Select>
-
-              <Input 
-                  type="date" 
-                  label="Data Inizio Rotazione" 
-                  value={applyMatrixStart} 
-                  onChange={(e) => setApplyMatrixStart(e.target.value)} 
-              />
-
-              <div className="flex justify-end gap-2 pt-4">
-                  <Button variant="ghost" onClick={() => setShowMatrixModal(false)}>Annulla</Button>
-                  <Button variant="primary" onClick={handleApplyMatrixSubmit} disabled={!applyMatrixOpId || !applyMatrixId || !applyMatrixStart}>
-                      Applica Matrice
-                  </Button>
-              </div>
-          </div>
-      </Modal>
-      
-      <Modal 
-        isOpen={!!editingDayNote} 
-        onClose={() => setEditingDayNote(null)} 
-        title={`Nota del Giorno: ${editingDayNote ? format(parseISO(editingDayNote.date), 'dd/MM/yyyy') : ''}`}
-      >
-          {editingDayNote && (
-              <div className="space-y-4">
-                  <Select 
-                      label="Tipo Nota" 
-                      value={editingDayNote.note.type} 
-                      onChange={(e) => setEditingDayNote({ ...editingDayNote, note: { ...editingDayNote.note, type: e.target.value as any } })}
-                  >
-                      {Object.entries(NOTE_TYPES).map(([key, val]) => (
-                          <option key={key} value={key}>{val.label}</option>
-                      ))}
-                  </Select>
+                      );
+                  })()}
                   
-                  <div>
-                      <label className="block text-xs font-medium text-slate-500 uppercase mb-1">Contenuto</label>
-                      <textarea
-                          className="w-full border border-slate-300 rounded-md p-2 text-sm h-32 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          value={editingDayNote.note.text}
-                          onChange={(e) => setEditingDayNote({ ...editingDayNote, note: { ...editingDayNote.note, text: e.target.value } })}
-                          placeholder="Scrivi qui la nota per questo giorno..."
-                      />
+                  {/* Shift Grid */}
+                  <div className="grid grid-cols-6 gap-1 mb-1">
+                      {state.shiftTypes.map(s => (
+                          <button
+                              key={s.id}
+                              onClick={() => { setDraftShift(s.code); }}
+                              className={`h-7 w-full rounded text-xs font-bold border flex items-center justify-center transition-transform active:scale-95 ${draftShift === s.code ? 'ring-2 ring-blue-500 ring-offset-1 z-10' : 'opacity-90 hover:opacity-100'} ${getContrastColor(s.color)}`}
+                              style={{ backgroundColor: s.color }}
+                              title={s.name}
+                          >
+                              {s.code}
+                          </button>
+                      ))}
+                      <button 
+                          onClick={() => { setDraftShift('OFF'); }}
+                          className={`h-7 w-full rounded text-xs font-bold border bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 ${draftShift === 'OFF' ? 'ring-2 ring-blue-500 ring-offset-1 z-10' : ''}`}
+                      >
+                          OFF
+                      </button>
                   </div>
+                  
+                  <input 
+                      className="w-full text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors"
+                      placeholder="Note rapide..."
+                      value={draftNote}
+                      onChange={(e) => setDraftNote(e.target.value)}
+                  />
 
-                  <div className="flex justify-end gap-2">
-                      <Button variant="ghost" onClick={() => setEditingDayNote(null)}>Annulla</Button>
-                      <Button 
-                        variant="danger" 
-                        onClick={() => {
-                            dispatch({ type: 'UPDATE_DAY_NOTE', payload: { date: editingDayNote.date, note: '' } });
-                            setEditingDayNote(null);
-                        }}
-                      >
-                          Elimina
+                  <div className="flex justify-between pt-1">
+                      <Button variant="ghost" className="px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700" onClick={() => { setDraftShift(''); setDraftNote(''); saveChanges(); }}>
+                          <Trash2 size={12} className="mr-1 inline" /> Cancella
                       </Button>
-                      <Button 
-                        variant="primary" 
-                        onClick={() => {
-                            dispatch({ type: 'UPDATE_DAY_NOTE', payload: { date: editingDayNote.date, note: editingDayNote.note } });
-                            setEditingDayNote(null);
-                        }}
-                      >
+                      <Button variant="primary" className="px-3 py-1 text-xs h-7" onClick={saveChanges}>
                           Salva
                       </Button>
                   </div>
               </div>
           )}
+
+          {/* Multi Select Popup */}
+          {multiSelection && multiSelectPopupPosition && (
+              <div 
+                  className="fixed z-[60] bg-white rounded-lg shadow-xl border border-slate-200 p-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 min-w-[150px]"
+                  style={{ left: multiSelectPopupPosition.x, top: multiSelectPopupPosition.y }}
+                  onClick={(e) => e.stopPropagation()}
+              >
+                  <div className="text-xs font-bold text-slate-500 px-2 py-1 border-b mb-1">Azioni Multiple</div>
+                  <button onClick={() => { setShowBulkModal(true); setMultiSelectPopupPosition(null); }} className="text-left px-2 py-1.5 text-sm hover:bg-slate-100 rounded text-slate-700 flex items-center gap-2">
+                      <Edit2 size={14} /> Assegna Turno...
+                  </button>
+                  <button onClick={handleConfirmSelection} className="text-left px-2 py-1.5 text-sm hover:bg-slate-100 rounded text-slate-700 flex items-center gap-2">
+                      <CheckCheck size={14} /> Consolida Matrice
+                  </button>
+                  <button onClick={handleCopySelection} className="text-left px-2 py-1.5 text-sm hover:bg-slate-100 rounded text-slate-700 flex items-center gap-2">
+                      <Copy size={14} /> Copia Selezione
+                  </button>
+                  <button onClick={() => handleBulkAssign('')} className="text-left px-2 py-1.5 text-sm hover:bg-red-50 text-red-600 rounded flex items-center gap-2">
+                      <Trash2 size={14} /> Svuota Celle
+                  </button>
+              </div>
+          )}
+      </div>
+      
+      {/* --- MODALS --- */}
+
+      {/* Operator Detail Modal */}
+      {detailsOpId && <OperatorDetailModal isOpen={!!detailsOpId} onClose={() => setDetailsOpId(null)} operatorId={detailsOpId} />}
+      
+      {/* Matrix Apply Modal */}
+      <Modal isOpen={showMatrixModal} onClose={() => setShowMatrixModal(false)} title="Applica Matrice">
+           <div className="space-y-4">
+               <p className="text-sm text-slate-600">
+                   Seleziona una matrice da applicare all'operatore corrente a partire da una data specifica.
+               </p>
+               <Select label="Matrice" value={applyMatrixId} onChange={(e) => setApplyMatrixId(e.target.value)}>
+                   <option value="">Seleziona...</option>
+                   {state.matrices.map(m => (
+                       <option key={m.id} value={m.id}>{m.name}</option>
+                   ))}
+               </Select>
+               <Input type="date" label="Data Inizio" value={applyMatrixStart} onChange={(e) => setApplyMatrixStart(e.target.value)} />
+               <div className="flex justify-end gap-2 pt-2">
+                   <Button variant="ghost" onClick={() => setShowMatrixModal(false)}>Annulla</Button>
+                   <Button variant="primary" onClick={handleApplyMatrixSubmit}>Applica</Button>
+               </div>
+           </div>
       </Modal>
+
+      {/* Bulk Assign Modal */}
+      <Modal isOpen={showBulkModal} onClose={() => setShowBulkModal(false)} title="Assegnazione Multipla">
+          <div className="p-2">
+              <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto mb-4">
+                  {state.shiftTypes.map(s => (
+                      <button
+                          key={s.id}
+                          onClick={() => handleBulkAssign(s.code)}
+                          className={`p-2 rounded text-xs font-bold border hover:opacity-80 ${getContrastColor(s.color)}`}
+                          style={{ backgroundColor: s.color }}
+                      >
+                          {s.code}
+                      </button>
+                  ))}
+              </div>
+              <div className="border-t pt-3 flex gap-2">
+                   <Button variant="secondary" className="flex-1 text-xs" onClick={() => handleBulkAssign('RESET')}>Ripristina Matrice</Button>
+                   <Button variant="danger" className="flex-1 text-xs" onClick={() => handleBulkAssign('')}>Svuota Celle</Button>
+              </div>
+          </div>
+      </Modal>
+
+      {/* COMPACT Drag Action Prompt Modal */}
+      <Modal isOpen={!!dragActionPrompt} onClose={() => setDragActionPrompt(null)} title="Spostamento" className="max-w-[320px]">
+          {dragActionPrompt && (
+              <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between text-sm text-slate-600 bg-slate-50 p-2 rounded border border-slate-200 mb-1">
+                      <div className="flex-1 text-center">
+                          <div className="font-bold text-slate-800 text-xs truncate w-20 mx-auto">{dragActionPrompt.source.name}</div>
+                          <div className="text-xs">{format(parseISO(dragActionPrompt.source.date || ''), 'dd/MM')} <span className="font-mono font-bold ml-1">{dragActionPrompt.source.code}</span></div>
+                      </div>
+                      <div className="px-2 text-slate-400"><ArrowRight size={14} /></div>
+                      <div className="flex-1 text-center">
+                          <div className="font-bold text-slate-800 text-xs truncate w-20 mx-auto">{dragActionPrompt.target.name}</div>
+                          <div className="text-xs">{format(parseISO(dragActionPrompt.target.date || ''), 'dd/MM')} <span className="font-mono font-bold ml-1">{dragActionPrompt.target.code}</span></div>
+                      </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-2">
+                      <button onClick={() => resolveDragAction('SWAP')} className="flex flex-col items-center justify-center p-2 rounded border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors text-blue-800">
+                          <ArrowRightLeft size={16} />
+                          <span className="text-xs font-bold mt-1">Scambia</span>
+                      </button>
+                      <button onClick={() => resolveDragAction('COPY')} className="flex flex-col items-center justify-center p-2 rounded border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-slate-700">
+                          <Copy size={16} />
+                          <span className="text-xs font-bold mt-1">Copia</span>
+                      </button>
+                      <button onClick={() => resolveDragAction('MOVE')} className="flex flex-col items-center justify-center p-2 rounded border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-slate-700">
+                          <ArrowRightCircle size={16} />
+                          <span className="text-xs font-bold mt-1">Sposta</span>
+                      </button>
+                  </div>
+              </div>
+          )}
+      </Modal>
+
+      {/* Detailed Edit Modal */}
+      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Modifica Turno" className="max-w-4xl">
+        {selectedCell && (
+          <div className="flex flex-col md:flex-row gap-6">
+            {/* Left Column: Shift Selection */}
+            <div className="flex-1">
+              <h4 className="font-bold text-sm text-slate-700 mb-3 uppercase flex items-center gap-2">
+                  <Grid size={16} /> Seleziona Turno
+              </h4>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                 {state.shiftTypes.map(s => (
+                     <button
+                        key={s.id}
+                        onClick={() => setDraftShift(s.code)}
+                        className={`p-2 rounded-lg text-sm font-bold border transition-all shadow-sm flex flex-col items-center justify-center h-16
+                          ${draftShift === s.code ? 'ring-2 ring-blue-600 ring-offset-1 scale-105 z-10' : 'hover:scale-105 hover:shadow-md opacity-90'}
+                          ${getContrastColor(s.color)}
+                        `}
+                        style={{ backgroundColor: s.color }}
+                     >
+                        <span>{s.code}</span>
+                        {s.hours > 0 && <span className="text-[10px] font-normal opacity-80">{s.hours}h</span>}
+                     </button>
+                 ))}
+                 <button
+                    onClick={() => setDraftShift('OFF')}
+                    className={`p-2 rounded-lg text-sm font-bold border transition-all shadow-sm flex flex-col items-center justify-center h-16 bg-slate-100 text-slate-600
+                      ${draftShift === 'OFF' ? 'ring-2 ring-blue-600 ring-offset-1 scale-105 z-10' : 'hover:bg-slate-200'}
+                    `}
+                 >
+                     OFF
+                 </button>
+              </div>
+              
+              <div className="mt-6">
+                   <label className="block text-sm font-bold text-slate-500 uppercase mb-2">Note Turno</label>
+                   <textarea
+                      className="w-full border border-slate-300 rounded-md p-2 text-sm h-20 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                      placeholder="Aggiungi una nota..."
+                      value={draftNote}
+                      onChange={(e) => setDraftNote(e.target.value)}
+                   />
+              </div>
+            </div>
+
+            {/* Right Column: Details & Extras */}
+            <div className="flex-1 border-l pl-0 md:pl-6 border-slate-200">
+                
+                {/* Custom Hours */}
+                <div className="mb-6 flex gap-4 items-end">
+                    <div className="flex-1">
+                       <Input 
+                          label="Ore Personalizzate" 
+                          type="number" 
+                          step="0.5"
+                          value={draftCustomHours ?? ''} 
+                          onChange={(e) => setDraftCustomHours(e.target.value ? parseFloat(e.target.value) : undefined)}
+                          placeholder="Default"
+                       />
+                    </div>
+                    <button 
+                        onClick={toggleGettone}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-md border font-bold transition-all h-[42px] mb-2
+                          ${draftSpecialEvents.some(e => e.type === 'Gettone') 
+                              ? 'bg-amber-100 text-amber-700 border-amber-300 ring-1 ring-amber-400' 
+                              : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                          }
+                        `}
+                    >
+                        <Coins size={18} />
+                        Gettone
+                    </button>
+                </div>
+
+                {/* Special Events List */}
+                <div className="mb-4">
+                    <h4 className="font-bold text-sm text-slate-500 uppercase mb-2">Voci Speciali Attive</h4>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {draftSpecialEvents.length > 0 ? draftSpecialEvents.map(ev => (
+                            <div key={ev.id} className="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-200 text-sm">
+                                <div className="flex items-center gap-2">
+                                    {ev.type === 'Gettone' ? <Coins size={14} className="text-amber-500"/> : <Star size={14} className="text-blue-500"/>}
+                                    <span className="font-medium">{ev.type}</span>
+                                    {ev.hours > 0 && <Badge color="bg-white border">{ev.hours}h</Badge>}
+                                </div>
+                                <button onClick={() => setDraftSpecialEvents(prev => prev.filter(x => x.id !== ev.id))} className="text-red-500 hover:bg-red-50 p-1 rounded">
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        )) : (
+                            <div className="text-sm text-slate-400 italic text-center py-2 border border-dashed rounded">Nessuna voce speciale</div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Add Special Event */}
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <h4 className="font-bold text-sm text-slate-600 mb-2 flex items-center gap-1"><Plus size={12}/> Aggiungi Voce</h4>
+                    <div className="flex gap-2 mb-2">
+                        <select 
+                            className="flex-1 text-sm border rounded p-1"
+                            value={newSpecialType}
+                            onChange={(e) => setNewSpecialType(e.target.value)}
+                        >
+                            <option value="Straordinario">Straordinario</option>
+                            <option value="Ferie">Ferie (Ore)</option>
+                            <option value="Permesso">Permesso</option>
+                            <option value="Malattia">Malattia</option>
+                            <option value="Recupero">Recupero</option>
+                            <option value="Altro">Altro</option>
+                        </select>
+                        <input 
+                            type="number" 
+                            className="w-16 text-sm border rounded p-1" 
+                            placeholder="Ore"
+                            value={newSpecialHours}
+                            onChange={(e) => setNewSpecialHours(e.target.value ? parseFloat(e.target.value) : '')}
+                        />
+                    </div>
+                    <Button variant="secondary" className="w-full text-xs py-1" onClick={addSpecialEvent} disabled={!newSpecialHours && newSpecialType !== 'Gettone'}>
+                        Aggiungi
+                    </Button>
+                </div>
+            </div>
+          </div>
+        )}
+        <div className="flex justify-between items-center pt-6 border-t mt-4">
+             <Button variant="danger" onClick={() => { setDraftShift(''); setDraftNote(''); saveChanges(); }}>
+                 <Eraser size={16} className="mr-2 inline" /> Ripristina / Cancella
+             </Button>
+             <div className="flex gap-2">
+                 <Button variant="ghost" onClick={() => setShowEditModal(false)}>Annulla</Button>
+                 <Button variant="primary" onClick={saveChanges}>
+                     <Save size={16} className="mr-2 inline" /> Salva Modifiche
+                 </Button>
+             </div>
+        </div>
+      </Modal>
+      
+      {/* ENHANCED COMPACT Day Note Editor */}
+      <Modal isOpen={!!editingDayNote} onClose={() => setEditingDayNote(null)} title={`Nota ${editingDayNote ? format(parseISO(editingDayNote.date), 'dd/MM') : ''}`} className="max-w-[340px]">
+          <div className="space-y-4">
+               <div>
+                   <div className="grid grid-cols-3 gap-2 pb-1 justify-center">
+                       {Object.entries(NOTE_TYPES).map(([key, config]) => (
+                           <button
+                               key={key}
+                               onClick={() => setEditingDayNote(prev => prev ? { ...prev, note: { ...prev.note, type: key as DayNoteType } } : null)}
+                               className={`flex flex-col items-center justify-center p-2 rounded border transition-all ${editingDayNote?.note.type === key ? `ring-2 ring-offset-1 ${config.bg} ${config.border} ring-blue-400` : 'bg-white border-slate-100 hover:bg-slate-50'}`}
+                               title={config.label}
+                           >
+                               <config.icon size={20} className={config.color} />
+                               <span className={`text-[10px] font-bold mt-1 uppercase tracking-tight ${config.color}`}>{config.label}</span>
+                           </button>
+                       ))}
+                   </div>
+               </div>
+               
+               <textarea 
+                   className="w-full text-base border border-slate-300 rounded p-3 h-24 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-all shadow-inner"
+                   value={editingDayNote?.note.text || ''} 
+                   onChange={(e) => setEditingDayNote(prev => prev ? { ...prev, note: { ...prev.note, text: e.target.value } } : null)}
+                   placeholder="Scrivi qui il significato o la descrizione della nota..."
+                   autoFocus
+               />
+               
+               <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                   <button 
+                       className="p-2 rounded-full text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors shadow-sm"
+                       onClick={() => {
+                           if (editingDayNote) dispatch({ type: 'UPDATE_DAY_NOTE', payload: { date: editingDayNote.date, note: '' } });
+                           setEditingDayNote(null);
+                       }}
+                       title="Elimina Nota"
+                   >
+                       <Trash2 size={20} />
+                   </button>
+                   <button 
+                       className="px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-all flex items-center gap-2 shadow-md active:scale-95"
+                       onClick={() => {
+                           if (editingDayNote) dispatch({ type: 'UPDATE_DAY_NOTE', payload: { date: editingDayNote.date, note: editingDayNote.note } });
+                           setEditingDayNote(null);
+                       }}
+                   >
+                       <Save size={16} /> Salva Nota
+                   </button>
+               </div>
+          </div>
+      </Modal>
+
+      {/* COMPACT Operator Personal Note Editor */}
+      <Modal isOpen={!!editingOperatorNote} onClose={() => setEditingOperatorNote(null)} title={`Note: ${editingOperatorNote?.name}`} className="max-w-[300px]">
+          <div className="space-y-3">
+               <textarea 
+                   className="w-full text-sm border border-slate-300 rounded p-2 h-24 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 bg-slate-50 focus:bg-white"
+                   value={editingOperatorNote?.text || ''} 
+                   onChange={(e) => setEditingOperatorNote(prev => prev ? { ...prev, text: e.target.value } : null)}
+                   placeholder="Note personali operatore..."
+                   autoFocus
+               />
+               
+               <div className="flex justify-between pt-1">
+                   <button 
+                       className="p-1.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
+                       onClick={() => {
+                           if (editingOperatorNote) {
+                               const op = state.operators.find(o => o.id === editingOperatorNote.opId);
+                               if (op) {
+                                   dispatch({ type: 'UPDATE_OPERATOR', payload: { ...op, notes: '' } });
+                               }
+                           }
+                           setEditingOperatorNote(null);
+                       }}
+                       title="Elimina Nota"
+                   >
+                       <Trash2 size={16} />
+                   </button>
+                   <button 
+                       className="px-3 py-1.5 rounded bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors flex items-center gap-1"
+                       onClick={() => {
+                           if (editingOperatorNote) {
+                               const op = state.operators.find(o => o.id === editingOperatorNote.opId);
+                               if (op) {
+                                   dispatch({ type: 'UPDATE_OPERATOR', payload: { ...op, notes: editingOperatorNote.text } });
+                               }
+                           }
+                           setEditingOperatorNote(null);
+                       }}
+                   >
+                       <Save size={14} /> Salva
+                   </button>
+               </div>
+          </div>
+      </Modal>
+
     </div>
   );
 };
