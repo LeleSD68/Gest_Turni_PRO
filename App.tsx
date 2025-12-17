@@ -1,15 +1,17 @@
+
 import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './store';
 import { Planner } from './views/Planner';
 import { Settings } from './views/Settings';
 import { Dashboard } from './views/Dashboard';
 import { Assignments } from './views/Assignments';
+import { Coverage } from './views/Coverage';
 import { DataManagement } from './views/DataManagement';
-import { Calendar, Settings as SettingsIcon, BarChart2, Menu, Briefcase, Database } from 'lucide-react';
+import { Calendar, Settings as SettingsIcon, BarChart2, Menu, Briefcase, Database, ShieldCheck } from 'lucide-react';
 
 const MainLayout = () => {
   const { dispatch, state } = useApp();
-  const [view, setView] = useState<'PLANNER' | 'DASHBOARD' | 'SETTINGS' | 'ASSIGNMENTS' | 'DATA'>('PLANNER');
+  const [view, setView] = useState<'PLANNER' | 'DASHBOARD' | 'SETTINGS' | 'ASSIGNMENTS' | 'DATA' | 'COVERAGE'>('PLANNER');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Keyboard Shortcuts for Undo/Redo
@@ -42,6 +44,7 @@ const MainLayout = () => {
         
         <nav className="flex-1 py-6 space-y-2">
            <NavItem icon={<Calendar />} label="Planner" active={view === 'PLANNER'} expanded={sidebarOpen} onClick={() => setView('PLANNER')} />
+           <NavItem icon={<ShieldCheck />} label="Copertura" active={view === 'COVERAGE'} expanded={sidebarOpen} onClick={() => setView('COVERAGE')} />
            <NavItem icon={<Briefcase />} label="Incarichi" active={view === 'ASSIGNMENTS'} expanded={sidebarOpen} onClick={() => setView('ASSIGNMENTS')} />
            <NavItem icon={<BarChart2 />} label="Analisi & Log" active={view === 'DASHBOARD'} expanded={sidebarOpen} onClick={() => setView('DASHBOARD')} />
            <NavItem icon={<Database />} label="Gestione Dati" active={view === 'DATA'} expanded={sidebarOpen} onClick={() => setView('DATA')} />
@@ -68,6 +71,7 @@ const MainLayout = () => {
          </header>
          <main className="flex-1 overflow-hidden relative">
             {view === 'PLANNER' && <Planner />}
+            {view === 'COVERAGE' && <Coverage />}
             {view === 'ASSIGNMENTS' && <Assignments />}
             {view === 'DASHBOARD' && <Dashboard />}
             {view === 'DATA' && <DataManagement />}
