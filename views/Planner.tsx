@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { useApp } from '../store';
 import { getMonthDays, formatDateKey, getEntry, calculateMatrixShift, validateCell, getShiftByCode, getSuggestions, parseISO, isOperatorEmployed, getItalianHolidayName, startOfMonth, startOfWeek, endOfWeek, subWeeks, addWeeks, endOfMonth } from '../utils';
 import { format, isToday, isWeekend, addMonths, differenceInDays, addDays, isWithinInterval, isSameMonth, isSunday, isBefore, eachDayOfInterval } from 'date-fns';
-import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2, Send, Cloud, CloudOff, Loader2, CheckCircle, PartyPopper, Star, CheckCircle2, Users, FileClock, Calendar, Grid, Columns, Briefcase } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2, Send, Cloud, CloudOff, Loader2, CheckCircle, PartyPopper, Star, CheckCircle2, Users, FileClock, Calendar, Grid, Columns, Briefcase, MoveRight, CheckCheck } from 'lucide-react';
 import { Button, Modal, Select, Input, Badge } from '../components/UI';
 import { PlannerEntry, ViewMode, ShiftType, SpecialEvent, CoverageConfig, DayNote, DayNoteType } from '../types';
 import { OperatorDetailModal } from '../components/OperatorDetailModal';
@@ -35,12 +35,8 @@ const NOTE_TYPES: Record<DayNoteType, { icon: React.ElementType, color: string, 
     CHECK: { icon: CheckCircle2, color: 'text-emerald-500', label: 'Fatto' }
 };
 
-// Icons for popup menu - Defined at top level to avoid hoisting issues
-const ActivityIcon = ({size, className}: {size: number, className?: string}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>;
-const CoffeeIcon = ({size, className}: {size: number, className?: string}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>;
-
 export const Planner = () => {
-  const { state, dispatch, history, syncStatus } = useApp();
+  const { state, dispatch, history, syncStatus, saveToCloud } = useApp();
   
   // State management
   const [displayMode, setDisplayMode] = useState<DisplayMode>('PLANNER_STANDARD');
@@ -48,13 +44,13 @@ export const Planner = () => {
   const [selectedCell, setSelectedCell] = useState<{ opId: string; date: string } | null>(null);
   const [showCellReport, setShowCellReport] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [isBulkEdit, setIsBulkEdit] = useState(false); // New State for Bulk Edit via Modal
+  const [isBulkEdit, setIsBulkEdit] = useState(false); 
   const [showPrevDays, setShowPrevDays] = useState(false);
   const [groupByMatrix, setGroupByMatrix] = useState(true);
   const [highlightPast, setHighlightPast] = useState(false);
   
-  // Popup State
-  const [cellPopupPosition, setCellPopupPosition] = useState<{x: number, y: number} | null>(null);
+  // Popup State - Now uses a smarter position object
+  const [cellPopupPosition, setCellPopupPosition] = useState<{x: number, y: number, align: 'top' | 'bottom'} | null>(null);
 
   // Multi-select Popup State
   const [multiSelectPopupPosition, setMultiSelectPopupPosition] = useState<{x: number, y: number} | null>(null);
@@ -64,6 +60,7 @@ export const Planner = () => {
   
   // Crosshair Highlight State
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  const [hoveredOpId, setHoveredOpId] = useState<string | null>(null);
   
   // Filters
   const [showFilters, setShowFilters] = useState(false);
@@ -117,11 +114,10 @@ export const Planner = () => {
   const [dragOverCell, setDragOverCell] = useState<{ opId: string; date: string } | null>(null);
   const [swapSource, setSwapSource] = useState<{ opId: string; date: string } | null>(null);
   
-  // New State for Drag & Drop Swap Confirmation
-  const [dragSwapConfirmation, setDragSwapConfirmation] = useState<{
-      source: { opId: string, date: string, name: string, code: string },
-      target: { opId: string, date: string, name: string, code: string },
-      updates: PlannerEntry[]
+  // --- NEW DRAG ACTION PROMPT STATE ---
+  const [dragActionPrompt, setDragActionPrompt] = useState<{
+      source: { opId: string, date: string, code: string, entry: PlannerEntry | null, name: string },
+      target: { opId: string, date: string, code: string, entry: PlannerEntry | null, name: string }
   } | null>(null);
 
   const [lastOperation, setLastOperation] = useState<LastOperation | null>(null);
@@ -143,6 +139,7 @@ export const Planner = () => {
   const [newSpecialMode, setNewSpecialMode] = useState<'ADDITIVE' | 'SUBTRACTIVE' | 'SUBSTITUTIVE'>('ADDITIVE');
   const [isSpecialMode, setIsSpecialMode] = useState(false);
 
+  // Derived Data
   const days = useMemo(() => {
       const date = parseISO(state.currentDate);
       if (viewSpan === 'WEEK') {
@@ -160,6 +157,7 @@ export const Planner = () => {
       }
   }, [state.currentDate, showPrevDays, viewSpan]);
   
+  // ... (Filtering Logic - Omitted for brevity, unchanged) ...
   const filteredOperators = useMemo(() => {
       return state.operators.filter(op => {
           if (filterStatus === 'ACTIVE' && !op.isActive) return false;
@@ -270,6 +268,7 @@ export const Planner = () => {
       return parseFloat(diff.toFixed(2));
   };
 
+  // ... (useEffect for modals - Unchanged) ...
   useEffect(() => {
     if ((editMode || showCellReport) && selectedCell) {
         const entry = getEntry(state, selectedCell.opId, selectedCell.date);
@@ -281,8 +280,6 @@ export const Planner = () => {
         setDraftShift(shiftCode);
         setDraftNote(entry?.note ?? '');
         setDraftVariationReason(entry?.variationReason ?? '');
-        // FIX: Only set draftCustomHours if it was explicitly set in the entry.
-        // Otherwise undefined (Auto) to allow shift change to pick new default hours.
         setDraftCustomHours(entry?.customHours); 
         setDraftSpecialEvents(entry?.specialEvents || []);
         setIsSpecialMode((entry?.specialEvents && entry.specialEvents.length > 0) || false);
@@ -389,7 +386,6 @@ export const Planner = () => {
   };
 
   // --- Drag & Drop Handlers (handleDragStart, handleDragOver, etc.) ---
-  // [Code kept same as input, see full file for brevity]
   const handleDragStart = (e: React.DragEvent, opId: string, date: string, isEmployed: boolean) => {
     if (!isEmployed) {
         e.preventDefault();
@@ -418,6 +414,7 @@ export const Planner = () => {
     setDragOverCell(null);
   };
 
+  // --- REVISED HANDLE DROP WITH PROMPT ---
   const handleDrop = (e: React.DragEvent, targetOpId: string, targetDate: string, isEmployed: boolean) => {
     e.preventDefault();
     setDragOverCell(null); 
@@ -445,88 +442,94 @@ export const Planner = () => {
         return;
     }
 
-    const isSwap = effectiveTargetCode !== '' && effectiveTargetCode !== 'R'; 
-    const updates: PlannerEntry[] = [];
-
-    const targetViolation = validateCell(state, targetOpId, targetDate, effectiveSourceCode);
-    updates.push({
-        operatorId: targetOpId,
-        date: targetDate,
-        shiftCode: effectiveSourceCode,
-        note: sourceEntry?.note,
-        isManual: true,
-        violation: targetViolation || undefined,
-        variationReason: sourceEntry?.variationReason || (isSwap ? 'Scambio' : 'Spostamento'),
-        customHours: sourceEntry?.customHours,
-        specialEvents: sourceEntry?.specialEvents
+    // Set PROMPT state instead of executing immediately
+    setDragActionPrompt({
+        source: { 
+            opId: sourceOpId, 
+            date: sourceDate, 
+            code: effectiveSourceCode, 
+            entry: sourceEntry,
+            name: `${sourceOp?.lastName} ${sourceOp?.firstName}` 
+        },
+        target: { 
+            opId: targetOpId, 
+            date: targetDate, 
+            code: effectiveTargetCode, 
+            entry: targetEntry,
+            name: `${targetOp?.lastName} ${targetOp?.firstName}` 
+        }
     });
-
-    if (isSwap) {
-        const sourceViolation = validateCell(state, sourceOpId, sourceDate, effectiveTargetCode);
-        updates.push({
-            operatorId: sourceOpId,
-            date: sourceDate,
-            shiftCode: effectiveTargetCode,
-            note: targetEntry?.note,
-            isManual: true,
-            violation: sourceViolation || undefined,
-            variationReason: targetEntry?.variationReason || 'Scambio',
-            customHours: targetEntry?.customHours,
-            specialEvents: targetEntry?.specialEvents
-        });
-
-        setDragSwapConfirmation({
-            source: { 
-                opId: sourceOpId, 
-                date: sourceDate, 
-                name: `${sourceOp?.lastName} ${sourceOp?.firstName}`, 
-                code: effectiveSourceCode 
-            },
-            target: { 
-                opId: targetOpId, 
-                date: targetDate, 
-                name: `${targetOp?.lastName} ${targetOp?.firstName}`, 
-                code: effectiveTargetCode 
-            },
-            updates: updates
-        });
-
-    } else {
-        updates.push({
-            operatorId: sourceOpId,
-            date: sourceDate,
-            shiftCode: '', 
-            isManual: true,
-            violation: undefined
-        });
-
-        dispatch({ type: 'BATCH_UPDATE', payload: updates });
-        dispatch({
-            type: 'ADD_LOG',
-            payload: {
-                id: crypto.randomUUID(),
-                timestamp: Date.now(),
-                operatorId: targetOpId,
-                actionType: 'UPDATE',
-                reason: `Spostato da ${format(parseISO(sourceDate), 'dd/MM')}`,
-                user: 'CurrentUser',
-                targetDate: targetDate
-            }
-        });
-    }
 
     setDraggingCell(null);
   };
 
-  const confirmDragSwap = () => {
-      if (!dragSwapConfirmation) return;
-      const { source, target, updates } = dragSwapConfirmation;
-      dispatch({ type: 'BATCH_UPDATE', payload: updates });
-      
-      dispatch({ type: 'ADD_LOG', payload: { id: crypto.randomUUID(), timestamp: Date.now(), operatorId: target.opId, actionType: 'SWAP', reason: `Scambio con ${source.name} (${format(parseISO(source.date), 'dd/MM')})`, user: 'CurrentUser', targetDate: target.date } });
-      dispatch({ type: 'ADD_LOG', payload: { id: crypto.randomUUID(), timestamp: Date.now(), operatorId: source.opId, actionType: 'SWAP', reason: `Scambio con ${target.name} (${format(parseISO(target.date), 'dd/MM')})`, user: 'CurrentUser', targetDate: source.date } });
+  // --- RESOLVE DRAG ACTION ---
+  const resolveDragAction = (action: 'SWAP' | 'COPY' | 'MOVE') => {
+      if (!dragActionPrompt) return;
+      const { source, target } = dragActionPrompt;
+      const updates: PlannerEntry[] = [];
 
-      setDragSwapConfirmation(null);
+      // 1. Prepare Target Update (Common to all: Target receives Source Shift)
+      const targetViolation = validateCell(state, target.opId, target.date, source.code);
+      updates.push({
+          operatorId: target.opId,
+          date: target.date,
+          shiftCode: source.code,
+          note: source.entry?.note, // Move note too
+          isManual: true,
+          violation: targetViolation || undefined,
+          variationReason: action === 'SWAP' ? 'Scambio' : (action === 'MOVE' ? 'Spostamento' : 'Copia'),
+          customHours: source.entry?.customHours,
+          specialEvents: source.entry?.specialEvents
+      });
+
+      // 2. Handle Source Update based on Action
+      if (action === 'SWAP') {
+          // Source receives Target Shift
+          const sourceViolation = validateCell(state, source.opId, source.date, target.code);
+          updates.push({
+              operatorId: source.opId,
+              date: source.date,
+              shiftCode: target.code,
+              note: target.entry?.note,
+              isManual: true,
+              violation: sourceViolation || undefined,
+              variationReason: 'Scambio',
+              customHours: target.entry?.customHours,
+              specialEvents: target.entry?.specialEvents
+          });
+      } else if (action === 'MOVE') {
+          // Source becomes EMPTY/RESET (Standard Drag & Drop Move)
+          updates.push({
+              operatorId: source.opId,
+              date: source.date,
+              shiftCode: '', // Empty to override matrix or just clear
+              isManual: true,
+              violation: undefined
+          });
+      }
+      // If COPY, Source remains untouched (no update needed for source)
+
+      // 3. Dispatch & Log
+      if (updates.length > 0) {
+          dispatch({ type: 'BATCH_UPDATE', payload: updates });
+          
+          const logMsg = action === 'SWAP' ? 'Scambio Turni' : (action === 'MOVE' ? 'Spostamento Turno' : 'Copia Turno');
+          dispatch({ 
+              type: 'ADD_LOG', 
+              payload: { 
+                  id: crypto.randomUUID(), 
+                  timestamp: Date.now(), 
+                  operatorId: target.opId, 
+                  actionType: 'UPDATE', 
+                  reason: `${logMsg} da ${format(parseISO(source.date), 'dd/MM')} (${source.name})`, 
+                  user: 'CurrentUser', 
+                  targetDate: target.date 
+              } 
+          });
+      }
+
+      setDragActionPrompt(null);
   };
 
   // ... (Other Handlers: Copy/Paste, Bulk Assign, Matrix Apply, Exports) ...
@@ -597,6 +600,58 @@ export const Planner = () => {
       setMultiSelectPopupPosition(null);
   };
 
+  // --- NEW: Handle Confirm/Consolidate Selection ---
+  const handleConfirmSelection = () => {
+    if (!multiSelection) return;
+    const { opId, start, end } = multiSelection;
+    const s = parseISO(start);
+    const e = parseISO(end);
+    const daysRange = eachDayOfInterval({ start: s, end: e });
+    const updates: PlannerEntry[] = [];
+
+    const op = state.operators.find(o => o.id === opId);
+    if (!op) return;
+
+    daysRange.forEach(d => {
+        const dateKey = formatDateKey(d);
+        // Check if manual entry already exists
+        const entry = getEntry(state, opId, dateKey);
+        
+        // Only confirm if it's NOT already manual/confirmed
+        if (!entry) {
+            const matrixCode = calculateMatrixShift(op, dateKey, state.matrices);
+            if (matrixCode) {
+                 const violation = validateCell(state, opId, dateKey, matrixCode);
+                 updates.push({
+                     operatorId: opId,
+                     date: dateKey,
+                     shiftCode: matrixCode,
+                     isManual: true, // Makes it solid/confirmed
+                     violation: violation || undefined
+                 });
+            }
+        }
+    });
+
+    if (updates.length > 0) {
+        dispatch({ type: 'BATCH_UPDATE', payload: updates });
+        dispatch({ 
+            type: 'ADD_LOG', 
+            payload: { 
+                id: crypto.randomUUID(), 
+                timestamp: Date.now(), 
+                operatorId: opId, 
+                actionType: 'UPDATE', 
+                reason: `Consolidamento Matrice (${updates.length} gg)`, 
+                user: 'CurrentUser', 
+                targetDate: start 
+            } 
+        });
+    }
+    setMultiSelection(null);
+    setMultiSelectPopupPosition(null);
+  };
+
   const handleApplyMatricesClick = () => {
      if (selectedCell) setApplyMatrixOpId(selectedCell.opId);
      setApplyMatrixStart(state.currentDate);
@@ -643,6 +698,7 @@ export const Planner = () => {
   // [Code kept same as input, see full file for brevity]
   const handleExportForGoogleSheets = async () => { /* ... */ };
   const handleExportCSV = () => { /* ... */ };
+  
   const handleCellClick = (e: React.MouseEvent, opId: string, date: string, isEmployed: boolean) => {
     if (!isEmployed) return;
     const target = e.currentTarget as HTMLElement;
@@ -673,7 +729,33 @@ export const Planner = () => {
     setMultiSelectPopupPosition(null);
     setEditMode(false);
     setShowCellReport(false); 
-    setCellPopupPosition({ x: rect.left + rect.width / 2, y: rect.bottom + 5 });
+    
+    // SMART POPUP POSITIONING
+    const popupHeight = 250;
+    const popupWidth = 300;
+    const screenHeight = window.innerHeight;
+    const screenWidth = window.innerWidth;
+    
+    let y = rect.bottom + 5;
+    let align: 'top' | 'bottom' = 'bottom';
+    
+    // Check if bottom overflow
+    if (y + popupHeight > screenHeight) {
+        y = rect.top - popupHeight - 5;
+        align = 'top';
+    }
+    
+    let x = rect.left + rect.width / 2;
+    // Check right overflow (adjust center)
+    if (x + 150 > screenWidth) {
+        x = screenWidth - 160;
+    }
+    // Check left overflow
+    if (x - 150 < 0) {
+        x = 160;
+    }
+
+    setCellPopupPosition({ x, y, align });
   };
 
   const handleRightClick = (e: React.MouseEvent, opId: string, date: string, isEmployed: boolean) => {
@@ -755,8 +837,7 @@ export const Planner = () => {
   const handleAssignTo = (targetOpId: string) => { /* ... */ }
 
   const renderCell = (op: any, day: Date) => {
-    // ... (renderCell implementation mostly unchanged) ...
-    // [Truncated for brevity, see original file]
+    // ... [Cell Rendering Logic kept mostly same] ...
     const dateKey = formatDateKey(day);
     const isEmployed = isOperatorEmployed(op, dateKey);
     const entry = getEntry(state, op.id, dateKey);
@@ -770,7 +851,12 @@ export const Planner = () => {
     let isGhost = false;
     let isMatrixOverride = false;
     let manualOverrideCode = '';
-    const isColHovered = dateKey === hoveredDate;
+    
+    // Crosshair logic
+    const isRowHovered = hoveredOpId === op.id;
+    const isColHovered = hoveredDate === dateKey;
+    // We apply crosshair highlight if ANY is true, but use subtle styling
+    const isCrosshairActive = isRowHovered || isColHovered;
 
     if (!isEmployed) {
         return (
@@ -894,6 +980,8 @@ export const Planner = () => {
           ${!isCurrentMonth && viewSpan === 'MONTH' ? 'bg-slate-100/50 text-slate-400' : isToday(day) ? 'bg-slate-50' : ''}
           ${isHol ? 'bg-slate-200/40' : ''}
           ${isPast && highlightPast ? 'opacity-30 grayscale bg-slate-100' : ''}
+          ${isCrosshairActive && !isSelected && !shiftType && !isHol ? 'bg-blue-50/50' : ''} 
+          ${isCrosshairActive && shiftType ? 'brightness-95' : ''}
           ${isSelected ? 'ring-4 ring-violet-600 ring-offset-2 ring-offset-white z-50 shadow-2xl scale-105 opacity-100 grayscale-0' : ''}
           ${isMultiSelected ? 'ring-inset ring-2 ring-blue-600 bg-blue-300/60 z-20' : ''}
           ${isPendingTarget ? 'ring-2 ring-dashed ring-blue-500 z-20' : ''}
@@ -905,7 +993,7 @@ export const Planner = () => {
         `}
       >
         {isColHovered && (
-             <div className="absolute inset-0 bg-blue-500/10 pointer-events-none z-10" />
+             <div className="absolute inset-0 bg-blue-500/5 pointer-events-none z-10" />
         )}
         <div className="absolute top-0 right-0 pointer-events-auto">
           {isSwap && <div className="w-0 h-0 border-t-[6px] border-l-[6px] border-t-cyan-500 border-l-transparent" title="Scambio" />}
@@ -1026,12 +1114,17 @@ export const Planner = () => {
       >
           {/* ...Toolbar Content... */}
           <div className="flex items-center gap-2 min-w-0">
-            <div className="hidden lg:flex items-center mr-2 px-2 py-1 bg-slate-50 rounded border border-slate-200" title="Stato Cloud">
+            <button
+                onClick={() => saveToCloud(true)}
+                disabled={syncStatus === 'SYNCING'}
+                className="hidden lg:flex items-center mr-2 px-2 py-1 bg-slate-50 rounded border border-slate-200 hover:bg-blue-50 cursor-pointer transition-colors disabled:opacity-70 disabled:cursor-wait"
+                title="Clicca per forzare il salvataggio su Cloud (Neon DB)"
+            >
                 {syncStatus === 'SYNCING' && <><Loader2 size={16} className="animate-spin text-blue-500 mr-2" /><span className="text-xs text-blue-600 font-medium">Salvataggio...</span></>}
                 {syncStatus === 'SAVED' && <><CheckCircle size={16} className="text-emerald-500 mr-2" /><span className="text-xs text-emerald-600 font-medium">Salvato</span></>}
                 {syncStatus === 'ERROR' && <><CloudOff size={16} className="text-red-500 mr-2" /><span className="text-xs text-red-600 font-medium">Offline</span></>}
                 {syncStatus === 'IDLE' && <><Cloud size={16} className="text-slate-400 mr-2" /><span className="text-xs text-slate-500">Pronto</span></>}
-            </div>
+            </button>
 
             <div className="flex items-center gap-2 md:gap-4 overflow-x-auto">
                 <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 shrink-0">
@@ -1153,6 +1246,7 @@ export const Planner = () => {
             </div>
            {multiSelection && (
                <>
+                <Button variant="primary" onClick={handleConfirmSelection} title="Conferma Matrice (Rendi definitivi)"><CheckCheck size={16} /></Button>
                 <Button variant="primary" onClick={handleCopySelection} title="Copia"><Copy size={16} /></Button>
                 <Button variant="secondary" onClick={() => { setShowBulkModal(true); setMultiSelectPopupPosition(null); }} title="Assegna"><Layers size={16} /></Button>
                </>
@@ -1173,7 +1267,7 @@ export const Planner = () => {
       <div 
         ref={scrollContainerRef}
         className="flex-1 flex flex-col overflow-hidden bg-white relative no-print touch-pan-x touch-pan-y"
-        onMouseLeave={() => setHoveredDate(null)}
+        onMouseLeave={() => { setHoveredDate(null); setHoveredOpId(null); }}
       >
           {/* ... Grid Content ... */}
           {/* Omitted grid implementation for brevity - stays same */}
@@ -1216,7 +1310,7 @@ export const Planner = () => {
                                ${isWeekend(d) ? 'bg-slate-200 text-slate-800' : 'text-slate-600'} 
                                ${isToday(d) ? 'bg-blue-100 font-bold text-blue-700' : ''} 
                                ${!isCurrentMonth && viewSpan === 'MONTH' ? 'bg-slate-100 opacity-60 grayscale' : ''} 
-                               ${isHovered ? 'bg-blue-200/50' : 'hover:bg-blue-50'} 
+                               ${isHovered ? 'bg-blue-200 brightness-95' : 'hover:bg-blue-50'} 
                                ${isPast && highlightPast ? 'opacity-40 bg-slate-200 grayscale' : ''}`}
                                onClick={() => handleOpenDayNote(dateKey)}
                                onMouseEnter={() => setHoveredDate(dateKey)}
@@ -1405,9 +1499,12 @@ export const Planner = () => {
                                 return (
                                     <div key={op.id} className="flex border-b border-slate-200 hover:bg-blue-50/50 transition-colors duration-0 h-10 md:h-8 group">
                                       <div 
-                                        className="w-32 md:w-48 shrink-0 bg-white border-r border-slate-200 flex flex-col justify-center pl-2 md:pl-4 py-1 z-30 border-l-4 truncate cursor-pointer group-hover:bg-blue-50 transition-colors sticky left-0 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"
+                                        className={`w-32 md:w-48 shrink-0 border-r border-slate-200 flex flex-col justify-center pl-2 md:pl-4 py-1 z-30 border-l-4 truncate cursor-pointer transition-colors sticky left-0 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]
+                                            ${hoveredOpId === op.id ? 'bg-blue-100' : 'bg-white group-hover:bg-blue-50'}
+                                        `}
                                         style={{ borderLeftColor: groupByMatrix && matrix ? matrix.color : 'transparent' }}
                                         onClick={() => setDetailsOpId(op.id)}
+                                        onMouseEnter={() => setHoveredOpId(op.id)}
                                       >
                                         <div className="flex items-center justify-between pr-2">
                                             <span className="font-medium text-slate-800 text-xs md:text-sm truncate group-hover:text-blue-600 group-hover:underline decoration-blue-400 underline-offset-2">
@@ -1449,8 +1546,9 @@ export const Planner = () => {
          <div 
             className="fixed z-[60] bg-white rounded-xl shadow-2xl border border-slate-200 w-72 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
             style={{ 
-                left: Math.min(window.innerWidth - 300, Math.max(10, cellPopupPosition.x - 144)), 
-                top: Math.min(window.innerHeight - 200, cellPopupPosition.y + 10)
+                left: cellPopupPosition.x - 144, // Centered horizontally
+                top: cellPopupPosition.align === 'bottom' ? cellPopupPosition.y : undefined,
+                bottom: cellPopupPosition.align === 'top' ? (window.innerHeight - cellPopupPosition.y) : undefined
             }}
             onClick={(e) => e.stopPropagation()}
          >
@@ -1533,6 +1631,66 @@ export const Planner = () => {
             })()}
          </div>
       )}
+
+      {/* DRAG ACTION MODAL (New) */}
+      <Modal isOpen={!!dragActionPrompt} onClose={() => setDragActionPrompt(null)} title="Azione di Trascinamento">
+          {dragActionPrompt && (
+              <div className="space-y-6">
+                  <div className="flex items-center justify-between text-sm bg-slate-50 p-4 rounded-lg border border-slate-200">
+                      <div className="flex flex-col items-center flex-1">
+                          <span className="text-xs font-bold text-slate-400 uppercase mb-1">Sorgente</span>
+                          <span className="font-bold text-slate-800">{dragActionPrompt.source.name}</span>
+                          <Badge color="bg-blue-100 text-blue-700 mt-1">{dragActionPrompt.source.code || 'Vuoto'}</Badge>
+                      </div>
+                      <ArrowRight className="text-slate-400" />
+                      <div className="flex flex-col items-center flex-1">
+                          <span className="text-xs font-bold text-slate-400 uppercase mb-1">Destinazione</span>
+                          <span className="font-bold text-slate-800">{dragActionPrompt.target.name}</span>
+                          <Badge color="bg-emerald-100 text-emerald-700 mt-1">{dragActionPrompt.target.code || 'Vuoto'}</Badge>
+                      </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                      <button 
+                          onClick={() => resolveDragAction('SWAP')}
+                          className="flex flex-col items-center justify-center p-4 border rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all group"
+                      >
+                          <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-2 group-hover:bg-blue-200">
+                              <ArrowRightLeft size={20} />
+                          </div>
+                          <span className="font-bold text-slate-700">Scambia</span>
+                          <span className="text-[10px] text-slate-500 text-center mt-1">Inverti i turni tra i due operatori</span>
+                      </button>
+
+                      <button 
+                          onClick={() => resolveDragAction('COPY')}
+                          className="flex flex-col items-center justify-center p-4 border rounded-lg hover:bg-emerald-50 hover:border-emerald-300 transition-all group"
+                      >
+                          <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-2 group-hover:bg-emerald-200">
+                              <Copy size={20} />
+                          </div>
+                          <span className="font-bold text-slate-700">Copia</span>
+                          <span className="text-[10px] text-slate-500 text-center mt-1">Sovrascrivi destinazione, mantieni origine</span>
+                      </button>
+
+                      <button 
+                          onClick={() => resolveDragAction('MOVE')}
+                          className="flex flex-col items-center justify-center p-4 border rounded-lg hover:bg-amber-50 hover:border-amber-300 transition-all group"
+                      >
+                          <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mb-2 group-hover:bg-amber-200">
+                              <MoveRight size={20} />
+                          </div>
+                          <span className="font-bold text-slate-700">Sposta</span>
+                          <span className="text-[10px] text-slate-500 text-center mt-1">Sposta alla destinazione e svuota origine</span>
+                      </button>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                      <Button variant="ghost" onClick={() => setDragActionPrompt(null)}>Annulla</Button>
+                  </div>
+              </div>
+          )}
+      </Modal>
 
       {/* Matrix Application Modal */}
       <Modal isOpen={showMatrixModal} onClose={() => setShowMatrixModal(false)} title="Applica Matrice">

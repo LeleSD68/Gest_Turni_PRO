@@ -69,7 +69,7 @@ export interface SpecialEvent {
   startTime: string; // HH:mm
   endTime: string; // HH:mm
   hours: number;
-  mode?: 'ADDITIVE' | 'SUBSTITUTIVE'; // Defines if hours add to total or replace existing time
+  mode?: 'ADDITIVE' | 'SUBSTITUTIVE' | 'SUBTRACTIVE'; // Defines if hours add to total or replace existing time
 }
 
 export interface PlannerEntry {
@@ -115,6 +115,7 @@ export interface LogEntry {
   newValue?: string;
   reason?: string;
   user: string;
+  targetDate?: string;
 }
 
 export interface CallEntry {
@@ -145,6 +146,7 @@ export interface AIConfig {
 export interface AppState {
   isAuthenticated: boolean;
   lastLogin: number;
+  dataRevision: number; // Incrementing counter for data versioning
   currentDate: string; // YYYY-MM-01
   operators: Operator[];
   shiftTypes: ShiftType[];

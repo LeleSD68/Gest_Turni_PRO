@@ -8,6 +8,7 @@ const generateDefaultContract = (id: string) => ([{ id: `c-${id}`, start: '2025-
 const initialState: AppState = {
   isAuthenticated: true, // Accesso immediato
   lastLogin: Date.now(),
+  dataRevision: 0,
   currentDate: format(new Date(), 'yyyy-MM-01'),
   operators: [
     { id: '1', firstName: 'Lara', lastName: 'BUZZARELLO', isActive: true, notes: '', contracts: generateDefaultContract('1'), matrixHistory: [], order: 1 },
@@ -216,6 +217,7 @@ const appReducer = (state: AppState, action: Action): AppState => {
       return {
         ...initialState, 
         ...incoming,     
+        dataRevision: incoming.dataRevision || 0,
         config: {
             ...initialState.config, 
             ...(incoming.config || {}), 
@@ -353,9 +355,15 @@ const historyReducer = (state: HistoryAwareState, action: Action): HistoryAwareS
   
   if (newPresent === present) return state;
 
+  // Auto-increment data revision on any history-tracking change
+  const nextPresent = {
+      ...newPresent,
+      dataRevision: (present.dataRevision || 0) + 1
+  };
+
   return {
     past: [...past, present].slice(-CONSTANTS.HISTORY_LIMIT),
-    present: newPresent,
+    present: nextPresent,
     future: []
   };
 };

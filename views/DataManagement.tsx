@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useMemo } from 'react';
 import { useApp } from '../store';
 import { Button, Card, Modal, Badge } from '../components/UI';
@@ -227,6 +226,14 @@ export const DataManagement = () => {
         }
     };
 
+    const toggleAllMonths = () => {
+        if (selectedMonths.length === availableMonths.length) {
+            setSelectedMonths([]);
+        } else {
+            setSelectedMonths([...availableMonths]);
+        }
+    };
+
     return (
         <div className="p-6 h-full overflow-y-auto bg-slate-50">
             <h1 className="text-2xl font-bold text-slate-800 mb-6">Gestione Dati</h1>
@@ -440,9 +447,17 @@ export const DataManagement = () => {
                             <div className="space-y-5 animate-in fade-in">
                                 {/* Month Selection */}
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 flex items-center gap-2">
-                                        <Calendar size={14} /> Seleziona Mesi da Importare
-                                    </label>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                                            <Calendar size={14} /> Seleziona Mesi da Importare
+                                        </label>
+                                        <button 
+                                            onClick={toggleAllMonths}
+                                            className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                                        >
+                                            {selectedMonths.length === availableMonths.length ? 'Deseleziona Tutti' : 'Seleziona Tutti'}
+                                        </button>
+                                    </div>
                                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-40 overflow-y-auto p-1">
                                         {availableMonths.map(m => (
                                             <button
