@@ -22,12 +22,21 @@ export const Assignments = () => {
     const toggleAssignment = (opId: string, date: string) => {
         if (!selectedAssignment) return;
 
+        const key = `${opId}_${date}`;
+        const shiftEntry = getEntry(state, opId, date);
+        const matrixShift = calculateMatrixShift(state.operators.find(o => o.id === opId)!, date, state.matrices);
+        const shiftCode = shiftEntry ? shiftEntry.shiftCode : (matrixShift || '');
+        const shiftType = state.shiftTypes.find(s => s.code === shiftCode);
+        
+        // Block assignment if not a day-working shift (hours 0 or Night)
+        const isAssignable = shiftType && shiftType.hours > 0 && shiftCode !== 'N';
+        if (!isAssignable) return;
+
         if (selectedAssignment === 'CLEAR') {
             dispatch({ type: 'REMOVE_ASSIGNMENT', payload: { operatorId: opId, date } });
             return;
         }
 
-        const key = `${opId}_${date}`;
         const current = state.assignmentData[key];
 
         if (current && current.assignmentId === selectedAssignment) {
@@ -62,7 +71,7 @@ export const Assignments = () => {
                         </h2>
                         <div className="flex items-center gap-3">
                             <div className="text-xs text-slate-500 flex items-center mr-2 bg-yellow-50 px-2 py-1 rounded border border-yellow-200 hidden md:flex">
-                                <Info size={14} className="mr-1 text-yellow-600"/>
+                                <span className="flex items-center mr-1 text-yellow-600"><Info size={14} className="mr-1"/></span>
                                 <span>Usa <strong>Ctrl+P</strong> se la stampa non parte automaticamente.</span>
                             </div>
                             <Button variant="secondary" onClick={() => window.print()} className="gap-2">
@@ -169,15 +178,17 @@ export const Assignments = () => {
                                 const assignment = assignmentEntry ? state.assignments.find(a => a.id === assignmentEntry.assignmentId) : null;
 
                                 const shiftType = state.shiftTypes.find(s => s.code === shiftCode);
-                                const isWorking = shiftType && shiftType.hours > 0;
+                                
+                                // Assignment is only allowed for working day shifts (exclude OFF, R, etc. and Night N)
+                                const isAssignable = shiftType && shiftType.hours > 0 && shiftCode !== 'N';
 
                                 return (
                                     <div 
                                         key={d.toString()} 
-                                        className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-300 text-sm relative ${isWorking ? 'bg-white font-bold text-slate-900' : 'bg-slate-200 text-slate-400'} ${selectedAssignment ? 'cursor-pointer hover:bg-blue-50' : ''}`}
-                                        onClick={() => toggleAssignment(op.id, dateKey)}
+                                        className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-300 text-sm relative ${isAssignable ? 'bg-white font-bold text-slate-900' : 'bg-slate-200 text-slate-400'} ${selectedAssignment && isAssignable ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                                        onClick={() => isAssignable && toggleAssignment(op.id, dateKey)}
                                     >
-                                        {!isWorking && !assignment && (
+                                        {!isAssignable && !assignment && (
                                             <div className="absolute inset-0" style={{ 
                                                 backgroundImage: 'repeating-linear-gradient(45deg, #e2e8f0 0, #e2e8f0 2px, transparent 0, transparent 50%)',
                                                 backgroundSize: '4px 4px',
@@ -197,14 +208,14 @@ export const Assignments = () => {
                                         )}
                                         
                                         {/* Hover Preview for Eraser */}
-                                        {selectedAssignment === 'CLEAR' && assignment && (
+                                        {selectedAssignment === 'CLEAR' && assignment && isAssignable && (
                                             <div className="absolute inset-0 flex items-center justify-center bg-red-100/50 opacity-0 hover:opacity-100 text-red-600 z-20">
                                                 <X size={14} />
                                             </div>
                                         )}
                                         
                                         {/* Hover Preview for Adding */}
-                                        {selectedAssignment && selectedAssignment !== 'CLEAR' && !assignment && (
+                                        {selectedAssignment && selectedAssignment !== 'CLEAR' && !assignment && isAssignable && (
                                             <div 
                                                 className="absolute inset-1 rounded opacity-0 hover:opacity-40 border-2 border-dashed z-20"
                                                 style={{ borderColor: state.assignments.find(a => a.id === selectedAssignment)?.color }}
@@ -219,8 +230,8 @@ export const Assignments = () => {
             </div>
             
             <div className="p-3 bg-slate-50 border-t text-xs text-slate-500 text-center flex justify-between px-6">
-                <span>Seleziona uno strumento in alto e clicca sulle celle.</span>
-                <span>La "Gomma" rimuove qualsiasi incarico.</span>
+                <span>I turni <strong>Notturni (N)</strong> e i turni di riposo sono stati esclusi dall'assegnazione incarichi.</span>
+                <span>Seleziona uno strumento in alto e clicca sulle celle bianche.</span>
             </div>
         </div>
     );

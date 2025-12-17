@@ -4,25 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
     <title>ShiftMaster Pro</title>
-    <!-- Tailwind via CDN è accettabile per semplicità -->
+    <!-- Tailwind via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         theme: {
           extend: {
             colors: {
-              primary: '#0f172a', // Slate 900
-              secondary: '#3b82f6', // Blue 500
-              accent: '#f59e0b', // Amber 500
-              danger: '#ef4444', // Red 500
-              success: '#22c55e', // Green 500
+              primary: '#0f172a',
+              secondary: '#3b82f6',
+              accent: '#f59e0b',
+              danger: '#ef4444',
+              success: '#22c55e',
             }
           }
         }
       }
     </script>
     <style>
-      /* Custom scrollbar for planner */
       .planner-scroll::-webkit-scrollbar {
         width: 8px;
         height: 8px;
@@ -38,36 +37,45 @@
         background: #94a3b8;
       }
 
-      /* STAMPA: Logica aggressiva per nascondere l'app e mostrare solo il layout di stampa */
+      /* Logica di Stampa */
+      @media screen {
+        #print-root { display: none; }
+      }
+
       @media print {
         @page {
-          size: A3 landscape; /* Impostazione pagina A3 Orizzontale */
-          margin: 0;
+          size: auto;
+          margin: 0; /* Margini gestiti internamente dai componenti */
         }
         
-        /* Nasconde TUTTO il contenuto della pagina di base */
-        body > * {
+        body {
+          background-color: white !important;
+          overflow: visible !important;
+          height: auto !important;
+        }
+
+        /* Nasconde tutto il resto */
+        body > #root {
           display: none !important;
         }
 
-        /* Rende visibile SOLO l'area di stampa specifica */
-        body > .print-area-container {
+        /* Forza la visibilità del root di stampa */
+        body > #print-root {
           display: block !important;
           position: absolute;
           left: 0;
           top: 0;
-          width: 100%;
-          height: 100%;
+          width: 100% !important;
+          height: auto !important;
           z-index: 99999;
-          background-color: #1e3a8a !important; /* Forza sfondo blu in stampa */
-          margin: 0;
-          padding: 0;
+          background: white !important;
         }
 
-        /* Assicura che i colori di sfondo vengano stampati */
+        /* Assicura che i colori vengano stampati */
         * {
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
+          color-adjust: exact !important;
         }
       }
     </style>
@@ -91,8 +99,8 @@
 </head>
   <body class="bg-gray-50 text-slate-800 antialiased h-screen overflow-hidden">
     <div id="root" class="h-full flex flex-col"></div>
-    <!-- Container separato per la stampa che esiste fuori da root -->
-    <div id="print-root" class="print-area-container hidden"></div>
+    <!-- Contenitore di stampa senza classe 'hidden' di Tailwind -->
+    <div id="print-root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
