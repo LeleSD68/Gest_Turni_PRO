@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useApp } from '../store';
 import { getMonthDays, formatDateKey, getEntry, calculateMatrixShift, isOperatorEmployed } from '../utils';
@@ -79,6 +80,7 @@ export const PrintLayout = () => {
           <thead>
             <tr className="bg-slate-100 h-10" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
               <th className="border border-slate-400 p-2 w-48 text-left font-bold text-slate-800 uppercase text-[11px]">Operatore</th>
+              <th className="border border-slate-400 p-0.5 text-center w-12 font-bold text-slate-500 uppercase text-[9px] bg-slate-200" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>Ore</th>
               {days.map(d => {
                   const isHol = isItalianHoliday(d);
                   return (
@@ -102,59 +104,96 @@ export const PrintLayout = () => {
             </tr>
           </thead>
           <tbody>
-            {state.operators.filter(o => o.isActive).map(op => (
-              <tr key={op.id}>
-                <td className="border border-slate-400 p-1 pl-3 font-semibold truncate text-slate-900 text-[11px]">
-                  {op.lastName} {op.firstName.charAt(0)}.
-                </td>
-                {days.map(d => {
-                  const dateKey = formatDateKey(d);
-                  const isHol = isItalianHoliday(d);
-                  
-                  // Controllo se assunto
-                  if (!isOperatorEmployed(op, dateKey)) {
-                     return (
+            {state.operators.filter(o => o.isActive).map(op => {
+              // Calcolo ore totali per questo operatore nel mese visualizzato
+              const totalHours = days.reduce((acc, d) => {
+                const dk = formatDateKey(d);
+                if (!isOperatorEmployed(op, dk)) return acc;
+                
+                const entry = getEntry(state, op.id, dk);
+                const mxCode = calculateMatrixShift(op, dk, state.matrices);
+                const code = entry?.shiftCode || mxCode || '';
+                const st = state.shiftTypes.find(s => s.code === code);
+                
+                let h = 0;
+                if (entry?.customHours !== undefined) {
+                  h = entry.customHours;
+                } else if (st) {
+                  if (st.inheritsHours) {
+                    const mxShift = state.shiftTypes.find(s => s.code === mxCode);
+                    h = mxShift?.hours || 0;
+                  } else {
+                    h = st.hours;
+                  }
+                }
+                
+                // Eventi speciali (Straordinari, etc)
+                if (entry?.specialEvents) {
+                  entry.specialEvents.forEach(ev => {
+                    if (ev.mode === 'ADDITIVE' || !ev.mode) h += ev.hours;
+                    else if (ev.mode === 'SUBTRACTIVE') h -= ev.hours;
+                  });
+                }
+                return acc + h;
+              }, 0);
+
+              return (
+                <tr key={op.id}>
+                  <td className="border border-slate-400 p-1 pl-3 font-semibold truncate text-slate-900 text-[11px]">
+                    {op.lastName} {op.firstName.charAt(0)}.
+                  </td>
+                  <td className="border border-slate-400 p-0.5 text-center font-bold text-slate-600 bg-slate-50 text-[10px]" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+                    {totalHours > 0 ? Math.round(totalHours) : '-'}
+                  </td>
+                  {days.map(d => {
+                    const dateKey = formatDateKey(d);
+                    const isHol = isItalianHoliday(d);
+                    
+                    // Controllo se assunto
+                    if (!isOperatorEmployed(op, dateKey)) {
+                       return (
+                        <td 
+                            key={dateKey} 
+                            className="border border-slate-400 bg-slate-200"
+                            style={{ 
+                                backgroundImage: 'linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 50%, #cbd5e1 50%, #cbd5e1 75%, transparent 75%, transparent)',
+                                backgroundSize: '6px 6px',
+                                WebkitPrintColorAdjust: 'exact', 
+                                printColorAdjust: 'exact'
+                            }}
+                        ></td>
+                       );
+                    }
+
+                    const entry = getEntry(state, op.id, dateKey);
+                    const matrixShift = calculateMatrixShift(op, dateKey, state.matrices);
+                    const code = entry?.shiftCode || matrixShift || '';
+                    const shift = state.shiftTypes.find(s => s.code === code);
+                    
+                    let bg = 'transparent';
+                    if (shift?.color) {
+                        bg = `${shift.color}60`; 
+                    } else if (isHol) {
+                        bg = '#eff6ff'; 
+                    }
+
+                    return (
                       <td 
-                          key={dateKey} 
-                          className="border border-slate-400 bg-slate-200"
-                          style={{ 
-                              backgroundImage: 'linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 50%, #cbd5e1 50%, #cbd5e1 75%, transparent 75%, transparent)',
-                              backgroundSize: '6px 6px',
-                              WebkitPrintColorAdjust: 'exact', 
-                              printColorAdjust: 'exact'
-                          }}
-                      ></td>
-                     );
-                  }
-
-                  const entry = getEntry(state, op.id, dateKey);
-                  const matrixShift = calculateMatrixShift(op, dateKey, state.matrices);
-                  const code = entry?.shiftCode || matrixShift || '';
-                  const shift = state.shiftTypes.find(s => s.code === code);
-                  
-                  let bg = 'transparent';
-                  if (shift?.color) {
-                      bg = `${shift.color}60`; 
-                  } else if (isHol) {
-                      bg = '#eff6ff'; 
-                  }
-
-                  return (
-                    <td 
-                      key={dateKey} 
-                      className="border border-slate-400 p-0 text-center font-bold align-middle text-[10px]"
-                      style={{
-                          backgroundColor: bg,
-                          WebkitPrintColorAdjust: 'exact', 
-                          printColorAdjust: 'exact'
-                      }}
-                    >
-                      <span style={{ color: '#000' }}>{code}</span>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+                        key={dateKey} 
+                        className="border border-slate-400 p-0 text-center font-bold align-middle text-[10px]"
+                        style={{
+                            backgroundColor: bg,
+                            WebkitPrintColorAdjust: 'exact', 
+                            printColorAdjust: 'exact'
+                        }}
+                      >
+                        <span style={{ color: '#000' }}>{code}</span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

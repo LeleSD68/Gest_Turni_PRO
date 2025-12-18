@@ -53,7 +53,7 @@ const MainLayout = () => {
 
         <div className="p-4 border-t border-slate-800">
           <div className="text-xs text-slate-500 text-center flex flex-col gap-1 overflow-hidden">
-              <span className="font-mono text-slate-400">v1.6.{state.dataRevision || 0}</span>
+              <span className="font-mono text-slate-400">v2.2.{state.dataRevision || 0}</span>
               {state.logs.length > 0 && sidebarOpen && (
                   <span className="text-[10px] text-slate-600 truncate max-w-full italic mt-1 px-1" title={state.logs[0].reason}>
                       {state.logs[0].reason || 'Modifica'}

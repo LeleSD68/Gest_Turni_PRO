@@ -84,7 +84,7 @@ export const Coverage = () => {
     if (count < config.min) return 'bg-red-100 text-red-700 border-red-200';
     if (count < config.optimal) return 'bg-amber-100 text-amber-700 border-amber-200';
     if (count === config.optimal) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-    return 'bg-purple-100 text-purple-700 border-purple-200';
+    return 'bg-purple-100 text-purple-700 border-purple-200'; // Surplus Viola
   };
 
   return (
@@ -202,7 +202,7 @@ export const Coverage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card title="Carenze Critiche da Risolvere" className="border-red-100">
                 <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
-                    {criticalIssues.length > 0 ? criticalIssues.map((issue, idx) => (
+                    {criticalIssues.length > 0 ? criticalIssues.length > 0 ? criticalIssues.map((issue, idx) => (
                         <div key={idx} className="flex items-center justify-between p-3 bg-red-50 border border-red-100 rounded-lg animate-in fade-in slide-in-from-left-2" style={{ animationDelay: `${idx * 50}ms` }}>
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-red-100 rounded-full text-red-600">
@@ -221,6 +221,11 @@ export const Coverage = () => {
                             </div>
                         </div>
                     )) : (
+                        <div className="text-center py-10 text-slate-400 flex flex-col items-center gap-2">
+                            <CheckCircle2 size={32} className="text-emerald-400" />
+                            <p className="text-sm italic">Nessuna carenza critica rilevata.</p>
+                        </div>
+                    ) : (
                         <div className="text-center py-10 text-slate-400 flex flex-col items-center gap-2">
                             <CheckCircle2 size={32} className="text-emerald-400" />
                             <p className="text-sm italic">Nessuna carenza critica rilevata.</p>

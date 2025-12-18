@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { useApp } from '../store';
 import { getMonthDays, formatDateKey, getEntry, calculateMatrixShift, validateCell, getShiftByCode, getSuggestions, parseISO, isOperatorEmployed, getItalianHolidayName, startOfMonth, startOfWeek, endOfWeek, subWeeks, addWeeks, endOfMonth, isItalianHoliday } from '../utils';
 import { format, isToday, isWeekend, addMonths, differenceInDays, addDays, isWithinInterval, isSameMonth, isSunday, isBefore, eachDayOfInterval, isSaturday } from 'date-fns';
-import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2, Send, Cloud, CloudOff, Loader2, CheckCircle, PartyPopper, Star, CheckCircle2, Users, FileClock, Calendar, Grid, Columns, Briefcase, MoveRight, CheckCheck, MessageSquare, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, Download, Zap, AlertTriangle, UserCheck, RefreshCw, Edit2, X, Info, Save, UserPlus, Check, ArrowRightLeft, Wand2, HelpCircle, Eye, RotateCcw, Copy, ClipboardPaste, CalendarClock, Clock, Layers, GitCompare, Layout, CalendarDays, Search, List, MousePointer2, Eraser, CalendarOff, BarChart3, UserCog, StickyNote, Printer, Plus, Trash2, Watch, Coins, ArrowUpCircle, ArrowRightCircle, FileSpreadsheet, Undo, Redo, ArrowRight, ChevronDown, ChevronUp, FileText, History, Menu, Settings2, XCircle, Share2, Send, Cloud, CloudOff, Loader2, CheckCircle, PartyPopper, Star, CheckCircle2, Users, FileClock, Calendar, Grid, Columns, Briefcase, MoveRight, CheckCheck, MessageSquare, ShieldCheck, CheckCircle2 as CheckIcon } from 'lucide-react';
 import { Button, Modal, Select, Input, Badge } from '../components/UI';
 import { PlannerEntry, ViewMode, ShiftType, SpecialEvent, CoverageConfig, DayNote, DayNoteType } from '../types';
 import { OperatorDetailModal } from '../components/OperatorDetailModal';
@@ -50,6 +50,7 @@ export const Planner = () => {
   const [groupByMatrix, setGroupByMatrix] = useState(true);
   const [highlightPast, setHighlightPast] = useState(false);
   const [isCoverageExpanded, setIsCoverageExpanded] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   
   // Coverage detail popover
   const [coveragePopover, setCoveragePopover] = useState<{ date: string; x: number; y: number } | null>(null);
@@ -313,7 +314,6 @@ export const Planner = () => {
     setMultiSelection(null);
     setCellPopupPosition(null);
     setMultiSelectPopupPosition(null);
-    setIsBulkEdit(false);
     setCoveragePopover(null);
   };
 
@@ -649,7 +649,49 @@ export const Planner = () => {
       setEditingDayNote({ date: dateKey, note: noteObj });
   };
 
-  const handleExportForGoogleSheets = async () => {};
+  const handleExportForGoogleSheets = async () => {
+      if (!state.config.googleScriptUrl) {
+          alert("Errore: URL Google Script non configurato in Impostazioni.");
+          return;
+      }
+
+      setIsExporting(true);
+      try {
+          // Prepare data for export (the current visible month)
+          const exportData = {
+              monthLabel: getHeaderLabel(),
+              days: days.map(d => d.getDate()),
+              operators: state.operators.filter(op => op.isActive).map(op => {
+                  const shifts = days.map(d => {
+                      const dk = formatDateKey(d);
+                      const e = getEntry(state, op.id, dk);
+                      const m = calculateMatrixShift(op, dk, state.matrices);
+                      return e?.shiftCode || m || '';
+                  });
+                  return {
+                      name: `${op.lastName} ${op.firstName}`,
+                      shifts
+                  };
+              })
+          };
+
+          const response = await fetch(state.config.googleScriptUrl, {
+              method: 'POST',
+              mode: 'no-cors', // Standard for GAS WebApps without specific CORS headers
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(exportData)
+          });
+
+          // Since mode is no-cors, we won't get a full response body but if it doesn't throw, it likely sent.
+          alert("Dati inviati con successo al Foglio Master!");
+      } catch (err) {
+          console.error(err);
+          alert("Si è verificato un errore durante l'invio dei dati.");
+      } finally {
+          setIsExporting(false);
+      }
+  };
+
   const handleExportCSV = () => {
       const rows = [['Operatore', ...days.map(d => format(d, 'yyyy-MM-dd'))]];
       state.operators.filter(o => o.isActive).forEach(op => {
@@ -1042,7 +1084,7 @@ export const Planner = () => {
                 className={`absolute top-0 left-0 border-l-[6px] border-t-[6px] border-r-transparent border-b-transparent z-10 
                     ${coverageStatus === 'CRITICAL' ? 'border-l-red-600 border-t-red-600' : ''}
                     ${coverageStatus === 'LOW' ? 'border-l-amber-500 border-t-amber-500' : ''}
-                    ${coverageStatus === 'SURPLUS' ? 'border-l-purple-400 border-t-purple-400' : ''}
+                    ${coverageStatus === 'SURPLUS' ? 'border-l-purple-500 border-t-purple-500' : ''}
                 `}
             />
         )}
@@ -1093,6 +1135,7 @@ export const Planner = () => {
                       if (!cfg) return 'ADEQUATE';
                       if (data.mainCount < cfg.min) return 'CRITICAL';
                       if (data.mainCount < cfg.optimal) return 'LOW';
+                      if (data.mainCount > cfg.optimal) return 'SURPLUS';
                       return 'ADEQUATE';
                   };
 
@@ -1101,9 +1144,9 @@ export const Planner = () => {
                   let finalColor = 'bg-emerald-500';
                   if (statuses.includes('CRITICAL')) finalColor = 'bg-red-500 animate-pulse';
                   else if (statuses.includes('LOW')) finalColor = 'bg-amber-500';
+                  else if (statuses.includes('SURPLUS')) finalColor = 'bg-purple-500';
 
-                  const handleCoverageClick = (e: React.MouseEvent) => {
-                      e.stopPropagation();
+                  const handleCoverageHoverEnter = (e: React.MouseEvent) => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       setCoveragePopover({
                           date: dateKey,
@@ -1119,7 +1162,8 @@ export const Planner = () => {
                           ${isToday(d) ? 'bg-blue-50/30' : ''} 
                           ${!isCurrentMonth && viewSpan === 'MONTH' ? 'opacity-30' : ''}
                           ${isPast && highlightPast ? 'opacity-20' : ''}`}
-                          onClick={handleCoverageClick}
+                          onMouseEnter={handleCoverageHoverEnter}
+                          onMouseLeave={() => setCoveragePopover(null)}
                       >
                           <div className={`w-2.5 h-2.5 rounded-full ${finalColor} shadow-sm border border-white/20`} />
                       </div>
@@ -1143,11 +1187,12 @@ export const Planner = () => {
                                 const cov = getGroupedCoverage(dateKey, type);
                                 const cfg = state.config.coverage[type];
                                 const isCrit = cov.mainCount < (cfg?.min || 0);
+                                const isSurplus = cfg && cov.mainCount > cfg.optimal;
                                 
                                 return (
                                     <div key={`${type}-${dateKey}`} className="flex-1 min-w-[44px] md:min-w-0 flex items-center justify-center border-r border-slate-200/50">
                                         <div className="flex items-center gap-0.5">
-                                            <span className={`text-[9px] font-black ${isCrit ? 'text-red-500' : 'text-slate-600'}`}>{cov.mainCount}</span>
+                                            <span className={`text-[9px] font-black ${isCrit ? 'text-red-500' : isSurplus ? 'text-purple-500' : 'text-slate-600'}`}>{cov.mainCount}</span>
                                             {cov.supportCount > 0 && (
                                                 <span className="text-[8px] font-bold text-blue-400 bg-blue-50 px-0.5 rounded border border-blue-100">
                                                     +{cov.supportCount}
@@ -1162,56 +1207,6 @@ export const Planner = () => {
                 })}
             </div>
           )}
-
-          {/* Popover Detail Tendina */}
-          {coveragePopover && (
-                <div 
-                    className="fixed z-[70] bg-slate-900 text-white rounded-lg shadow-2xl p-3 w-[180px] animate-in fade-in zoom-in-95 pointer-events-auto"
-                    style={{ 
-                        left: coveragePopover.x, 
-                        top: coveragePopover.y, 
-                        transform: 'translateX(-50%)'
-                    }}
-                    onClick={e => e.stopPropagation()}
-                >
-                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-2 border-b border-slate-700 pb-1">
-                        Presenze {format(parseISO(coveragePopover.date), 'dd/MM')}
-                    </div>
-                    {(() => {
-                        const dateKey = coveragePopover.date;
-                        const m = getGroupedCoverage(dateKey, 'M8');
-                        const p = getGroupedCoverage(dateKey, 'P');
-                        const n = getGroupedCoverage(dateKey, 'N');
-                        
-                        const renderRow = (label: string, data: any, key: string) => {
-                            const cfg = state.config.coverage[key];
-                            const isCrit = data.mainCount < (cfg?.min || 0);
-                            const isLow = data.mainCount < (cfg?.optimal || 0);
-                            return (
-                                <div className="flex justify-between items-center py-1">
-                                    <span className="text-xs text-slate-300">{label}</span>
-                                    <div className="flex items-center gap-1">
-                                        <span className={`text-xs font-black ${isCrit ? 'text-red-400' : isLow ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                            {data.mainCount}/{cfg?.optimal || 0}
-                                        </span>
-                                        {data.supportCount > 0 && (
-                                            <span className="text-[9px] text-blue-300 bg-blue-500/20 px-1 rounded">+{data.supportCount} {data.supportLabel}</span>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        };
-
-                        return (
-                            <div className="space-y-0.5">
-                                {renderRow('Mattina', m, 'M8')}
-                                {renderRow('Pomeriggio', p, 'P')}
-                                {renderRow('Notte', n, 'N')}
-                            </div>
-                        );
-                    })()}
-                </div>
-            )}
         </div>
       );
   };
@@ -1430,8 +1425,15 @@ export const Planner = () => {
            {clipboard && selectedCell && (
                <Button variant="primary" onClick={handlePasteSelection} title="Incolla"><ClipboardPaste size={16} /></Button>
            )}
-           <Button variant="secondary" onClick={handleExportForGoogleSheets} title="Invia al Foglio Master" className="flex items-center gap-2">
-               <Send size={16} /> <span className="hidden lg:inline">Condividi</span>
+           <Button 
+                variant="secondary" 
+                onClick={handleExportForGoogleSheets} 
+                title="Invia al Foglio Master" 
+                className="flex items-center gap-2"
+                disabled={isExporting}
+           >
+               {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} 
+               <span className="hidden lg:inline">{isExporting ? 'Invio...' : 'Condividi'}</span>
            </Button>
            <Button variant="secondary" onClick={handleExportCSV} title="CSV"><FileSpreadsheet size={16} /></Button>
            <Button variant="secondary" onClick={handleApplyMatricesClick} title="Matrici"><Wand2 size={16} /></Button>
@@ -1542,6 +1544,20 @@ export const Planner = () => {
                                       return acc + h;
                                   }, 0);
 
+                                  // Special Events Calculation (Independent from base hours)
+                                  const totalSpecialHours = days.reduce((acc, d) => {
+                                      const k = formatDateKey(d);
+                                      if (!isOperatorEmployed(op, k)) return acc;
+                                      const entry = getEntry(state, op.id, k);
+                                      if (!entry || !entry.specialEvents) return acc;
+                                      let daySpecial = 0;
+                                      entry.specialEvents.forEach(ev => {
+                                          if (ev.mode === 'ADDITIVE' || !ev.mode) daySpecial += ev.hours;
+                                          else if (ev.mode === 'SUBTRACTIVE') daySpecial -= ev.hours;
+                                      });
+                                      return acc + daySpecial;
+                                  }, 0);
+
                                   return (
                                       <div key={op.id} className="flex border-b border-slate-300 hover:bg-slate-50 transition-colors h-10 md:h-8">
                                           {/* Name Column */}
@@ -1562,9 +1578,16 @@ export const Planner = () => {
                                               </button>
                                           </div>
                                           
-                                          {/* Stats Column */}
-                                          <div className="w-[40px] md:w-[60px] shrink-0 border-r border-slate-300 flex items-center justify-center text-[10px] md:text-xs font-semibold text-slate-600 bg-slate-50 relative z-10">
-                                              {totalHours > 0 ? Math.round(totalHours) : '-'}
+                                          {/* Stats Column (Split Base and Special) */}
+                                          <div className="w-[40px] md:w-[60px] shrink-0 border-r border-slate-300 flex flex-col items-center justify-center bg-slate-50 relative z-10 leading-none py-0.5">
+                                              <span className="text-[10px] md:text-xs font-semibold text-slate-600">
+                                                  {totalHours > 0 ? Math.round(totalHours) : '-'}
+                                              </span>
+                                              {totalSpecialHours !== 0 && (
+                                                  <span className={`text-[8px] font-bold mt-0.5 ${totalSpecialHours > 0 ? 'text-blue-500' : 'text-red-500'}`}>
+                                                      {totalSpecialHours > 0 ? '+' : ''}{totalSpecialHours}
+                                                  </span>
+                                              )}
                                           </div>
 
                                           {/* Days */}
@@ -1664,9 +1687,9 @@ export const Planner = () => {
                   />
 
                   <div className="flex justify-between pt-1">
-                      <Button variant="ghost" className="px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700" onClick={() => { setDraftShift(''); setDraftNote(''); saveChanges(); }}>
+                      <button className="px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 rounded transition-colors flex items-center" onClick={() => { setDraftShift(''); setDraftNote(''); saveChanges(); }}>
                           <Trash2 size={12} className="mr-1 inline" /> Cancella
-                      </Button>
+                      </button>
                       <Button variant="primary" className="px-3 py-1 text-xs h-7" onClick={saveChanges}>
                           Salva
                       </Button>
@@ -1697,6 +1720,58 @@ export const Planner = () => {
               </div>
           )}
       </div>
+
+      {/* Popover Detail Tendina - POSIZIONATO QUI ALLA FINE PER EVITARE OVERLAP RIGHE MATRICE */}
+      {coveragePopover && (
+          <div 
+              className="fixed z-[300] bg-slate-900 text-white rounded-lg shadow-2xl p-3 w-[180px] animate-in fade-in zoom-in-95 pointer-events-none"
+              style={{ 
+                  left: coveragePopover.x, 
+                  top: coveragePopover.y, 
+                  transform: 'translateX(-50%)'
+              }}
+          >
+              <div className="text-[10px] font-bold text-slate-400 uppercase mb-2 border-b border-slate-700 pb-1">
+                  Presenze {format(parseISO(coveragePopover.date), 'dd/MM')}
+              </div>
+              {(() => {
+                  const dateKey = coveragePopover.date;
+                  const m = getGroupedCoverage(dateKey, 'M8');
+                  const p = getGroupedCoverage(dateKey, 'P');
+                  const n = getGroupedCoverage(dateKey, 'N');
+                  
+                  const renderRow = (label: string, data: any, key: string) => {
+                      const cfg = state.config.coverage[key];
+                      const isCrit = data.mainCount < (cfg?.min || 0);
+                      const isLow = data.mainCount < (cfg?.optimal || 0);
+                      const isSurplus = cfg && data.mainCount > cfg.optimal;
+                      return (
+                          <div className="flex justify-between items-center py-1">
+                              <span className="text-xs text-slate-300">{label}</span>
+                              <div className="flex items-center gap-1 text-right">
+                                  {data.supportCount > 0 && (
+                                      <span className="text-[9px] text-blue-300 bg-blue-500/20 px-1 rounded mr-1">
+                                          {data.supportCount} {data.supportLabel} +
+                                      </span>
+                                  )}
+                                  <span className={`text-xs font-black ${isCrit ? 'text-red-400' : isLow ? 'text-amber-400' : isSurplus ? 'text-purple-500' : 'text-emerald-400'}`}>
+                                      {data.mainCount}
+                                  </span>
+                              </div>
+                          </div>
+                      );
+                  };
+
+                  return (
+                      <div className="space-y-0.5">
+                          {renderRow('Mattina', m, 'M8')}
+                          {renderRow('Pomeriggio', p, 'P')}
+                          {renderRow('Notte', n, 'N')}
+                      </div>
+                  );
+              })()}
+          </div>
+      )}
       
       {/* --- MODALS --- */}
 
@@ -1906,9 +1981,9 @@ export const Planner = () => {
           </div>
         )}
         <div className="flex justify-between items-center pt-6 border-t mt-4">
-             <Button variant="danger" onClick={() => { setDraftShift(''); setDraftNote(''); saveChanges(); }}>
+             <button className="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded transition-colors flex items-center" onClick={() => { setDraftShift(''); setDraftNote(''); saveChanges(); }}>
                  <Eraser size={16} className="mr-2 inline" /> Ripristina / Cancella
-             </Button>
+             </button>
              <div className="flex gap-2">
                  <Button variant="ghost" onClick={() => setShowEditModal(false)}>Annulla</Button>
                  <Button variant="primary" onClick={saveChanges}>
