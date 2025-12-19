@@ -1,7 +1,14 @@
+
 import { Pool } from '@neondatabase/serverless';
 
 export const config = {
   runtime: 'edge',
+};
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
 export default async function handler(request: Request) {
@@ -9,19 +16,15 @@ export default async function handler(request: Request) {
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      },
+      headers: corsHeaders,
     });
   }
 
   try {
     if (!process.env.DATABASE_URL) {
-      return new Response(JSON.stringify({ error: 'DATABASE_URL not configured' }), { 
+      return new Response(JSON.stringify({ error: 'DATABASE_URL non configurata nel server' }), { 
         status: 500, 
-        headers: { 'Content-Type': 'application/json' } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
 
@@ -29,41 +32,31 @@ export default async function handler(request: Request) {
     const authHeader = request.headers.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
 
-    // Verifica Token di Sessione nel DB
+    // Verifica Autorizzazione
     let isAuthenticated = false;
-    if (token) {
-        // Fallback per vecchio APP_ACCESS_CODE durante migrazione (opzionale, rimuovere per sicurezza totale)
-        if (process.env.APP_ACCESS_CODE && token === process.env.APP_ACCESS_CODE) {
+    
+    // Se non c'è una master key impostata, permettiamo l'accesso (setup iniziale)
+    if (!process.env.APP_ACCESS_CODE) {
+        isAuthenticated = true;
+    } else if (token && token === process.env.APP_ACCESS_CODE) {
+        isAuthenticated = true;
+    } else if (token) {
+        // Verifica se è un token di sessione valido
+        const { rows } = await pool.query('SELECT username FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
+        if (rows.length > 0) {
             isAuthenticated = true;
-        } else {
-            // Check tabella sessions
-            // Nota: Lazy create table sessions nel caso db-sync venga chiamato prima di auth (raro ma possibile)
-            await pool.query(`
-                CREATE TABLE IF NOT EXISTS sessions (
-                    token TEXT PRIMARY KEY,
-                    username TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '7 days')
-                );
-            `);
-            
-            const { rows } = await pool.query('SELECT username FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
-            if (rows.length > 0) {
-                isAuthenticated = true;
-            }
         }
     }
 
     if (!isAuthenticated) {
       await pool.end();
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+      return new Response(JSON.stringify({ error: 'Accesso Cloud negato: Codice non valido o mancante' }), { 
         status: 401, 
-        headers: { 'Content-Type': 'application/json' } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
 
-    // --- Logica Dati (Invariata) ---
-
+    // Inizializzazione Tabelle se non esistono
     if (request.method === 'GET') {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS shiftmaster_state (
@@ -78,10 +71,9 @@ export default async function handler(request: Request) {
         const data = rows.length > 0 ? rows[0].data : {};
         
         await pool.end();
-
         return new Response(JSON.stringify(data), { 
             status: 200, 
-            headers: { 'Content-Type': 'application/json' } 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         });
     } 
     
@@ -96,20 +88,19 @@ export default async function handler(request: Request) {
         `, [JSON.stringify(body)]);
         
         await pool.end();
-
         return new Response(JSON.stringify({ success: true }), { 
             status: 200, 
-            headers: { 'Content-Type': 'application/json' } 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         });
     }
 
-    return new Response('Method not allowed', { status: 405 });
+    return new Response('Method not allowed', { status: 405, headers: corsHeaders });
 
   } catch (err: any) {
       console.error("Database Error:", err);
-      return new Response(JSON.stringify({ error: err.message }), { 
+      return new Response(JSON.stringify({ error: `Errore Database: ${err.message}` }), { 
           status: 500, 
-          headers: { 'Content-Type': 'application/json' } 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
   }
 }

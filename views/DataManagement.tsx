@@ -1,7 +1,8 @@
-import React, { useRef, useState, useMemo } from 'react';
+
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { useApp } from '../store';
-import { Button, Card, Modal, Badge } from '../components/UI';
-import { Download, Upload, AlertTriangle, CheckCircle, Calendar, Users, FileJson, RefreshCw, ListFilter, ArrowRightLeft, ShieldCheck, FileCheck, Settings, X, Database, CloudUpload, CloudDownload } from 'lucide-react';
+import { Button, Card, Modal, Badge, Input } from '../components/UI';
+import { Download, Upload, AlertTriangle, CheckCircle, Calendar, Users, FileJson, RefreshCw, ListFilter, ArrowRightLeft, ShieldCheck, FileCheck, Settings, X, Database, CloudUpload, CloudDownload, Lock, Key } from 'lucide-react';
 import { AppState, PlannerEntry, SpecialEvent, CONSTANTS, Operator } from '../types';
 import { format, isValid } from 'date-fns';
 import { calculateMatrixShift, getShiftByCode, parseISO } from '../utils';
@@ -21,6 +22,9 @@ export const DataManagement = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
     const [showConfirmReset, setShowConfirmReset] = useState(false);
+    
+    // Cloud Access Token state
+    const [cloudToken, setCloudToken] = useState(() => localStorage.getItem('sm_token') || '');
 
     // --- Staging State for Import Analysis ---
     const [stagedData, setStagedData] = useState<AppState | null>(null);
@@ -35,6 +39,12 @@ export const DataManagement = () => {
 
     // Report State
     const [importReport, setImportReport] = useState<ImportReport | null>(null);
+
+    const handleSaveToken = () => {
+        localStorage.setItem('sm_token', cloudToken);
+        alert("Token salvato. Tenta ora una sincronizzazione.");
+        syncFromCloud(true);
+    };
 
     const handleExport = () => {
         const dataStr = JSON.stringify(state, null, 2);
@@ -249,9 +259,37 @@ export const DataManagement = () => {
                                 <p className="font-bold">Stato Connessione: {syncStatus}</p>
                                 <p className="text-xs opacity-80">Ultimo aggiornamento locale: {format(new Date(state.lastLogin), 'dd/MM/yyyy HH:mm:ss')}</p>
                             </div>
+                            {syncStatus === 'ERROR' && (
+                                <Badge color="bg-red-100 text-red-700 animate-pulse">Problema di Connessione</Badge>
+                            )}
+                        </div>
+
+                        {/* Cloud Access Code Section */}
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-inner">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
+                                <Lock size={14} /> Configurazione Accesso
+                            </h4>
+                            <div className="flex flex-col sm:flex-row gap-3 items-end">
+                                <div className="flex-1 w-full">
+                                    <Input 
+                                        label="Codice di Accesso Cloud (APP_ACCESS_CODE)" 
+                                        type="password"
+                                        placeholder="Inserisci il codice segreto..." 
+                                        value={cloudToken}
+                                        onChange={(e) => setCloudToken(e.target.value)}
+                                        className="mb-0"
+                                    />
+                                </div>
+                                <Button variant="secondary" onClick={handleSaveToken} className="whitespace-nowrap flex gap-2">
+                                    <Key size={16} /> Salva Codice
+                                </Button>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-2">
+                                * Se l'icona della nuvola è <strong>rossa</strong>, il codice inserito potrebbe essere errato o il database non è configurato.
+                            </p>
                         </div>
                         
-                        <div className="flex gap-4">
+                        <div className="flex gap-4 pt-2">
                             <Button 
                                 onClick={() => saveToCloud(true)} 
                                 className="flex-1 flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"

@@ -246,15 +246,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const saveToCloud = async (force = false) => {
     setSyncStatus('SYNCING');
     try {
+      const token = localStorage.getItem('sm_token') || '';
       const response = await fetch('/api/db-sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(state),
       });
-      if (!response.ok) throw new Error('Sync failed');
+      if (!response.ok) {
+         const errData = await response.json().catch(() => ({}));
+         throw new Error(errData.error || 'Sync failed');
+      }
       setSyncStatus('SAVED');
       setTimeout(() => setSyncStatus('IDLE'), 2000);
     } catch (e) {
+      console.error("Cloud Save Error:", e);
       setSyncStatus('ERROR');
     }
   };
@@ -262,8 +270,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const syncFromCloud = async (force = false) => {
     setSyncStatus('SYNCING');
     try {
-      const response = await fetch('/api/db-sync', { method: 'GET' });
-      if (!response.ok) throw new Error('Fetch failed');
+      const token = localStorage.getItem('sm_token') || '';
+      const response = await fetch('/api/db-sync', { 
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || 'Fetch failed');
+      }
       const data = await response.json();
       if (data && Object.keys(data).length > 0) {
         // Applica i dati dal cloud solo se più recenti o se forzato
@@ -273,6 +288,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       setSyncStatus('IDLE');
     } catch (e) {
+      console.error("Cloud Sync Error:", e);
       setSyncStatus('ERROR');
     }
   };
