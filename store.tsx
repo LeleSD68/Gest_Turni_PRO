@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useReducer, useEffect, useState, useCallback } from 'react';
 import { AppState, CONSTANTS, Operator, ShiftType, Matrix, LogEntry, CallEntry, PlannerEntry, Assignment, AssignmentEntry, HistoryAwareState, DayNote } from './types';
 import { format } from 'date-fns';
@@ -6,7 +7,7 @@ import { format } from 'date-fns';
 const generateDefaultContract = (id: string) => ([{ id: `c-${id}`, start: '2025-01-01' }]);
 
 const initialState: AppState = {
-  isAuthenticated: true, // Accesso immediato
+  isAuthenticated: true, 
   lastLogin: Date.now(),
   dataRevision: 0,
   currentDate: format(new Date(), 'yyyy-MM-01'),
@@ -34,24 +35,17 @@ const initialState: AppState = {
     { id: '21', firstName: 'Daniela', lastName: 'GRECO', isActive: true, notes: '', contracts: generateDefaultContract('21'), matrixHistory: [], order: 21 },
   ],
   shiftTypes: [
-    // Mattina (Verdi)
     { id: 'm6', code: 'M6', name: 'Mattino (08:00-14:00)', color: '#bcdfc3', hours: 6, isNight: false, isWeekend: false },
     { id: 'm7', code: 'M7', name: 'Mattina 7 ore (06:00-13:00)', color: '#d1ebbe', hours: 7, isNight: false, isWeekend: false },
     { id: 'm7p', code: 'M7-', name: 'Mattino Posticipato (07:00-13:00)', color: '#9cf7c8', hours: 6, isNight: false, isWeekend: false }, 
     { id: 'm8', code: 'M8', name: 'Mattina 8 ore (06:00-14:00)', color: '#8ece69', hours: 8, isNight: false, isWeekend: false },
     { id: 'm8p', code: 'M8-', name: 'Mattino Posticipato (07:00-14:00)', color: '#6cd578', hours: 7, isNight: false, isWeekend: false },
     { id: 'dm', code: 'DM', name: 'Mattino Lungo (08:00-15:30)', color: '#98d7ab', hours: 7.5, isNight: false, isWeekend: false },
-
-    // Pomeriggio (Arancio/Giallo)
     { id: 'p', code: 'P', name: 'Pomeriggio (14:00-21:00)', color: '#ff9e71', hours: 7, isNight: false, isWeekend: false },
     { id: 'pp', code: 'P-', name: 'Pomeriggio ridotto (14:00-20:00)', color: '#eac28a', hours: 6, isNight: false, isWeekend: false },
     { id: 'dp', code: 'DP', name: 'Pomeriggio (14:00-21:00)', color: '#d9b34a', hours: 7, isNight: false, isWeekend: false },
-
-    // Notte (Azzurro scuro/Grigio)
     { id: 'n', code: 'N', name: 'Notte (21:00-06:00)', color: '#83afb8', hours: 9, isNight: true, isWeekend: false },
     { id: 'sn', code: 'SN', name: 'Smonto Notte', color: '#cad6e0', hours: 0, isNight: false, isWeekend: false },
-
-    // Assenze e Permessi
     { id: 'r', code: 'R', name: 'Riposo', color: '#ffffff', hours: 0, isNight: false, isWeekend: false },
     { id: 'ro', code: 'R.O.', name: 'Recupero Ore', color: '#cccccc', hours: 0, isNight: false, isWeekend: false },
     { id: 'rr', code: 'R.R.', name: 'Recupero Riposo', color: '#cccccc', hours: 0, isNight: false, isWeekend: false },
@@ -60,7 +54,7 @@ const initialState: AppState = {
     { id: 'per', code: 'PER', name: 'Permesso', color: '#eca2e8', hours: 0, isNight: false, isWeekend: false, inheritsHours: true },
     { id: 'ps', code: 'P.S.', name: 'Permesso Sindacale', color: '#ac8c68', hours: 0, isNight: false, isWeekend: false },
     { id: '104', code: '104', name: 'Permesso 104', color: '#cc99be', hours: 0, isNight: false, isWeekend: false, inheritsHours: true },
-    { id: 'mal', code: 'MAL', name: 'Malattia', color: '#ff0000', hours: 0, isNight: false, isWeekend: false, inheritsHours: true }, // Rosso
+    { id: 'mal', code: 'MAL', name: 'Malattia', color: '#ff0000', hours: 0, isNight: false, isWeekend: false, inheritsHours: true }, 
     { id: 'a', code: 'A', name: 'Assenza', color: '#827d7d', hours: 0, isNight: false, isWeekend: false }
   ],
   assignments: [
@@ -73,39 +67,25 @@ const initialState: AppState = {
       id: 'm1',
       name: 'Matrice Standard',
       color: '#e0f2fe', 
-      sequence: [
-        'M8', 'M7', 'P', 'R',
-        'M8', 'M7', 'P', 'R',
-        'M8', 'P', 'N', 'SN', 'R',
-        'M8', 'M7', 'P', 'R',
-        'M8', 'M7', 'P', 'R',
-        'M7', 'P', 'N', 'SN', 'R'
-      ]
+      sequence: ['M8', 'M7', 'P', 'R', 'M8', 'M7', 'P', 'R', 'M8', 'P', 'N', 'SN', 'R', 'M8', 'M7', 'P', 'R', 'M8', 'M7', 'P', 'R', 'M7', 'P', 'N', 'SN', 'R']
     },
     {
       id: 'm2',
       name: 'Matrice Prescrizioni',
       color: '#fef3c7', 
-      sequence: [
-        'DM', 'DM', 'DP', 'DP', 'R', 'R'
-      ]
+      sequence: ['DM', 'DM', 'DP', 'DP', 'R', 'R']
     },
     {
       id: 'm3',
       name: 'Matrice Gennaio',
       color: '#dcfce7', 
-      sequence: [
-        'M8', 'P', 'N', 'SN', 'R',
-        'M8', 'M8', 'P', 'R'
-      ]
+      sequence: ['M8', 'P', 'N', 'SN', 'R', 'M8', 'M8', 'P', 'R']
     },
     {
       id: 'm4',
       name: 'Matrice Fuori Turno',
       color: '#f3e8ff', 
-      sequence: [
-        'M8', 'M8', 'P', 'P', 'R', 'R'
-      ]
+      sequence: ['M8', 'M8', 'P', 'P', 'R', 'R']
     }
   ],
   plannerData: {},
@@ -122,17 +102,11 @@ const initialState: AppState = {
       'P': { min: 2, optimal: 3 },
       'N': { min: 1, optimal: 2 },
     },
-    ai: {
-        enabled: false,
-        provider: 'OLLAMA',
-        baseUrl: 'http://localhost:11434',
-        model: 'llama3'
-    },
+    ai: { enabled: false, provider: 'OLLAMA', baseUrl: 'http://localhost:11434', model: 'llama3' },
     googleScriptUrl: ''
   },
 };
 
-// --- Actions ---
 type Action =
   | { type: 'SET_DATE'; payload: string }
   | { type: 'UPDATE_CELL'; payload: PlannerEntry }
@@ -163,42 +137,29 @@ type Action =
   | { type: 'UNDO' }
   | { type: 'REDO' };
 
-// --- Reducer ---
 const appReducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
-    case 'LOGIN_SUCCESS':
-      return { ...state, isAuthenticated: true };
-    case 'LOGOUT':
-      return { ...state, isAuthenticated: false };
-    case 'SET_DATE':
-      return { ...state, currentDate: action.payload };
-    case 'UPDATE_CELL':
+    case 'LOGIN_SUCCESS': return { ...state, isAuthenticated: true };
+    case 'LOGOUT': return { ...state, isAuthenticated: false };
+    case 'SET_DATE': return { ...state, currentDate: action.payload };
+    case 'UPDATE_CELL': {
       const key = `${action.payload.operatorId}_${action.payload.date}`;
-      return {
-        ...state,
-        plannerData: { ...state.plannerData, [key]: action.payload },
-      };
+      return { ...state, plannerData: { ...state.plannerData, [key]: action.payload } };
+    }
     case 'REMOVE_CELL': {
       const keyToRemove = `${action.payload.operatorId}_${action.payload.date}`;
       const updatedPlannerData = { ...state.plannerData };
       delete updatedPlannerData[keyToRemove];
-      return {
-        ...state,
-        plannerData: updatedPlannerData
-      };
+      return { ...state, plannerData: updatedPlannerData };
     }
-    case 'BATCH_UPDATE':
+    case 'BATCH_UPDATE': {
       const newPlannerData = { ...state.plannerData };
-      action.payload.forEach(entry => {
-        newPlannerData[`${entry.operatorId}_${entry.date}`] = entry;
-      });
+      action.payload.forEach(entry => { newPlannerData[`${entry.operatorId}_${entry.date}`] = entry; });
       return { ...state, plannerData: newPlannerData };
+    }
     case 'UPDATE_ASSIGNMENT': {
       const key = `${action.payload.operatorId}_${action.payload.date}`;
-      return {
-        ...state,
-        assignmentData: { ...state.assignmentData, [key]: action.payload },
-      };
+      return { ...state, assignmentData: { ...state.assignmentData, [key]: action.payload } };
     }
     case 'REMOVE_ASSIGNMENT': {
       const key = `${action.payload.operatorId}_${action.payload.date}`;
@@ -206,174 +167,50 @@ const appReducer = (state: AppState, action: Action): AppState => {
       delete updated[key];
       return { ...state, assignmentData: updated };
     }
-    case 'ADD_LOG':
-      return { ...state, logs: [action.payload, ...state.logs] };
-    case 'ADD_CALL':
-      return { ...state, calls: [action.payload, ...state.calls] };
-    case 'UPDATE_CONFIG':
-      return { ...state, config: { ...state.config, ...action.payload } };
+    case 'ADD_LOG': return { ...state, logs: [action.payload, ...state.logs] };
+    case 'UPDATE_CONFIG': return { ...state, config: { ...state.config, ...action.payload } };
     case 'RESTORE_BACKUP': {
       const incoming = action.payload;
       return {
-        ...initialState, 
-        ...incoming,     
-        dataRevision: incoming.dataRevision || 0,
-        config: {
-            ...initialState.config, 
-            ...(incoming.config || {}), 
-            coverage: {
-                ...initialState.config.coverage, 
-                ...(incoming.config?.coverage || {}) 
-            },
-            ai: {
-                ...initialState.config.ai,
-                ...(incoming.config?.ai || {})
-            }
-        },
-        operators: (incoming.operators || []).map((op) => ({
-            ...op,
-            contracts: op.contracts || [],
-            matrixHistory: op.matrixHistory || []
-        }))
+        ...initialState, ...incoming, isAuthenticated: true,
+        operators: (incoming.operators || []).map(op => ({ ...op, contracts: op.contracts || [], matrixHistory: op.matrixHistory || [] }))
       };
     }
-    case 'ADD_OPERATOR':
-      return { ...state, operators: [...state.operators, action.payload] };
-    case 'UPDATE_OPERATOR':
-      return {
-        ...state,
-        operators: state.operators.map(op => op.id === action.payload.id ? action.payload : op)
-      };
-    case 'DELETE_OPERATOR':
-      return {
-        ...state,
-        operators: state.operators.filter(op => op.id !== action.payload)
-      };
-    case 'ADD_SHIFT':
-      return { ...state, shiftTypes: [...state.shiftTypes, action.payload] };
-    case 'UPDATE_SHIFT':
-      return {
-        ...state,
-        shiftTypes: state.shiftTypes.map(s => s.id === action.payload.id ? action.payload : s)
-      };
-    case 'DELETE_SHIFT':
-      return {
-        ...state,
-        shiftTypes: state.shiftTypes.filter(s => s.id !== action.payload)
-      };
-    case 'ADD_MATRIX':
-      return { ...state, matrices: [...state.matrices, action.payload] };
-    case 'UPDATE_MATRIX':
-      return {
-        ...state,
-        matrices: state.matrices.map(m => m.id === action.payload.id ? action.payload : m)
-      };
-    case 'DELETE_MATRIX':
-      return {
-        ...state,
-        matrices: state.matrices.filter(m => m.id !== action.payload)
-      };
-    case 'ADD_ASSIGNMENT_TYPE':
-      return { ...state, assignments: [...state.assignments, action.payload] };
-    case 'UPDATE_ASSIGNMENT_TYPE':
-      return {
-        ...state,
-        assignments: state.assignments.map(a => a.id === action.payload.id ? action.payload : a)
-      };
-    case 'DELETE_ASSIGNMENT_TYPE':
-      return {
-        ...state,
-        assignments: state.assignments.filter(a => a.id !== action.payload)
-      };
-    case 'UPDATE_DAY_NOTE':
-      return {
-        ...state,
-        dayNotes: { ...state.dayNotes, [action.payload.date]: action.payload.note }
-      };
-    case 'REORDER_OPERATORS':
-      return {
-        ...state,
-        operators: action.payload
-      };
-    case 'UNDO':
-    case 'REDO':
-      return state; // Handled by history wrapper
-    default:
-      return state;
+    case 'ADD_OPERATOR': return { ...state, operators: [...state.operators, action.payload] };
+    case 'UPDATE_OPERATOR': return { ...state, operators: state.operators.map(op => op.id === action.payload.id ? action.payload : op) };
+    case 'DELETE_OPERATOR': return { ...state, operators: state.operators.filter(op => op.id !== action.payload) };
+    case 'UPDATE_DAY_NOTE': return { ...state, dayNotes: { ...state.dayNotes, [action.payload.date]: action.payload.note } };
+    case 'REORDER_OPERATORS': return { ...state, operators: action.payload };
+    default: return state;
   }
 };
 
-// --- History Wrapper ---
 const historyReducer = (state: HistoryAwareState, action: Action): HistoryAwareState => {
   const { past, present, future } = state;
-
-  if (action.type === 'UNDO') {
-    if (past.length === 0) return state;
-    const previous = past[past.length - 1];
-    const newPast = past.slice(0, past.length - 1);
-    return {
-      past: newPast,
-      present: previous,
-      future: [present, ...future]
-    };
+  if (action.type === 'UNDO' && past.length > 0) {
+    const prev = past[past.length - 1];
+    return { past: past.slice(0, -1), present: prev, future: [present, ...future] };
   }
-
-  if (action.type === 'REDO') {
-    if (future.length === 0) return state;
+  if (action.type === 'REDO' && future.length > 0) {
     const next = future[0];
-    const newFuture = future.slice(1);
-    return {
-      past: [...past, present],
-      present: next,
-      future: newFuture
-    };
+    return { past: [...past, present], present: next, future: future.slice(1) };
   }
-
-  // Determine if action should be recorded in history
-  const isHistoryAction = ![
-    'SET_DATE', 'LOGIN_SUCCESS', 'LOGOUT', 
-    'RESTORE_BACKUP' // Usually restore clears history or starts fresh, let's treat it as destructive
-  ].includes(action.type);
-
+  const isHistoryAction = !['SET_DATE', 'LOGIN_SUCCESS', 'LOGOUT', 'RESTORE_BACKUP'].includes(action.type);
   if (!isHistoryAction) {
     const newPresent = appReducer(present, action);
-    // If restore backup, reset history
-    if (action.type === 'RESTORE_BACKUP') {
-        return {
-            past: [],
-            present: newPresent,
-            future: []
-        };
-    }
-    return {
-        ...state,
-        present: newPresent
-    };
+    if (action.type === 'RESTORE_BACKUP') return { past: [], present: newPresent, future: [] };
+    return { ...state, present: newPresent };
   }
-
   const newPresent = appReducer(present, action);
-  
   if (newPresent === present) return state;
-
-  // Auto-increment data revision on any history-tracking change
-  const nextPresent = {
-      ...newPresent,
-      dataRevision: (present.dataRevision || 0) + 1
-  };
-
-  return {
-    past: [...past, present].slice(-CONSTANTS.HISTORY_LIMIT),
-    present: nextPresent,
-    future: []
-  };
+  const nextPresent = { ...newPresent, dataRevision: (present.dataRevision || 0) + 1 };
+  return { past: [...past, present].slice(-CONSTANTS.HISTORY_LIMIT), present: nextPresent, future: [] };
 };
 
-// --- Context ---
 interface AppContextType {
   state: AppState;
   dispatch: React.Dispatch<Action>;
   history: { canUndo: boolean; canRedo: boolean };
-  checkAuth: (u: string, p: string) => Promise<boolean>;
   saveToCloud: (force?: boolean) => Promise<void>;
   syncFromCloud: (force?: boolean) => Promise<void>;
   syncStatus: 'IDLE' | 'SYNCING' | 'SAVED' | 'ERROR';
@@ -382,100 +219,69 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load from localStorage if available
   const loadInitialState = (): HistoryAwareState => {
     try {
       const stored = localStorage.getItem(CONSTANTS.STORAGE_KEY);
       if (stored) {
-        const parsed = JSON.parse(stored);
-        // Ensure migration/defaults
-        const merged = { ...initialState, ...parsed };
-        
-        // Force authentication to skip login screen
+        const merged = { ...initialState, ...JSON.parse(stored) };
         merged.isAuthenticated = true;
-        
-        // Ensure operators have matrixHistory array
-        merged.operators = merged.operators.map((op: Operator) => ({
-             ...op,
-             matrixHistory: op.matrixHistory || [],
-             contracts: op.contracts || []
-        }));
-
-        return {
-            past: [],
-            present: merged,
-            future: []
-        };
+        merged.operators = merged.operators.map((op: any) => ({ ...op, matrixHistory: op.matrixHistory || [], contracts: op.contracts || [] }));
+        return { past: [], present: merged, future: [] };
       }
-    } catch (e) {
-      console.error("Failed to load state", e);
-    }
+    } catch (e) {}
     return { past: [], present: initialState, future: [] };
   };
 
   const [historyState, dispatch] = useReducer(historyReducer, undefined, loadInitialState);
   const state = historyState.present;
-  
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'SAVED' | 'ERROR'>('IDLE');
 
-  // Persistence Effect
-  useEffect(() => {
-    localStorage.setItem(CONSTANTS.STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+  useEffect(() => { localStorage.setItem(CONSTANTS.STORAGE_KEY, JSON.stringify(state)); }, [state]);
 
-  // Auth & Cloud Logic
-  const checkAuth = async (u: string, p: string): Promise<boolean> => {
-      // Mock Auth for now or simple check
-      if (u === 'admin' && p === 'admin') {
-          dispatch({ type: 'LOGIN_SUCCESS' });
-          return true;
-      }
-      return false;
-  };
+  // Sincronizzazione automatica all'avvio
+  useEffect(() => {
+    syncFromCloud(true);
+  }, []);
 
   const saveToCloud = async (force = false) => {
-      setSyncStatus('SYNCING');
-      try {
-          // Simulate API call
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          setSyncStatus('SAVED');
-          setTimeout(() => setSyncStatus('IDLE'), 2000);
-      } catch (e) {
-          setSyncStatus('ERROR');
-      }
+    setSyncStatus('SYNCING');
+    try {
+      const response = await fetch('/api/db-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state),
+      });
+      if (!response.ok) throw new Error('Sync failed');
+      setSyncStatus('SAVED');
+      setTimeout(() => setSyncStatus('IDLE'), 2000);
+    } catch (e) {
+      setSyncStatus('ERROR');
+    }
   };
 
   const syncFromCloud = async (force = false) => {
-      setSyncStatus('SYNCING');
-      try {
-           // Simulate API call
-           await new Promise(resolve => setTimeout(resolve, 1000));
-           setSyncStatus('IDLE');
-      } catch (e) {
-           setSyncStatus('ERROR');
+    setSyncStatus('SYNCING');
+    try {
+      const response = await fetch('/api/db-sync', { method: 'GET' });
+      if (!response.ok) throw new Error('Fetch failed');
+      const data = await response.json();
+      if (data && Object.keys(data).length > 0) {
+        // Applica i dati dal cloud solo se più recenti o se forzato
+        if (force || (data.dataRevision || 0) > (state.dataRevision || 0)) {
+          dispatch({ type: 'RESTORE_BACKUP', payload: data });
+        }
       }
+      setSyncStatus('IDLE');
+    } catch (e) {
+      setSyncStatus('ERROR');
+    }
   };
 
-  const value = {
-    state,
-    dispatch,
-    history: {
-        canUndo: historyState.past.length > 0,
-        canRedo: historyState.future.length > 0
-    },
-    checkAuth,
-    saveToCloud,
-    syncFromCloud,
-    syncStatus
-  };
-
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return <AppContext.Provider value={{ state, dispatch, history: { canUndo: historyState.past.length > 0, canRedo: historyState.future.length > 0 }, saveToCloud, syncFromCloud, syncStatus }}>{children}</AppContext.Provider>;
 };
 
 export const useApp = () => {
   const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within an AppProvider');
-  }
+  if (!context) throw new Error('useApp must be used within an AppProvider');
   return context;
 };
