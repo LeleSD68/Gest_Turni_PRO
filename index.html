@@ -1,97 +1,66 @@
+
 <!DOCTYPE html>
 <html lang="it">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
     <title>ShiftMaster Pro</title>
-    <!-- Tailwind via CDN è accettabile per semplicità -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         theme: {
           extend: {
             colors: {
-              primary: '#0f172a', // Slate 900
-              secondary: '#3b82f6', // Blue 500
-              accent: '#f59e0b', // Amber 500
-              danger: '#ef4444', // Red 500
-              success: '#22c55e', // Green 500
+              primary: '#0f172a',
+              secondary: '#3b82f6',
+              accent: '#f59e0b',
+              danger: '#ef4444',
+              success: '#22c55e',
             }
           }
         }
       }
     </script>
     <style>
-      /* Custom scrollbar for planner */
-      .planner-scroll::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      .planner-scroll::-webkit-scrollbar-track {
-        background: #f1f5f9;
-      }
-      .planner-scroll::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 4px;
-      }
-      .planner-scroll::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
-      }
+      .planner-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+      .planner-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+      .planner-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+      .planner-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-      /* STAMPA: Logica aggressiva per nascondere l'app e mostrare solo il layout di stampa */
       @media print {
-        @page {
-          size: A3 landscape; /* Impostazione pagina A3 Orizzontale */
-          margin: 0;
-        }
-        
-        /* Nasconde TUTTO il contenuto della pagina di base */
-        body > * {
-          display: none !important;
-        }
-
-        /* Rende visibile SOLO l'area di stampa specifica */
+        @page { size: A3 landscape; margin: 0; }
+        body > * { display: none !important; }
         body > .print-area-container {
           display: block !important;
           position: absolute;
-          left: 0;
-          top: 0;
-          width: 100%;
-          height: 100%;
+          left: 0; top: 0; width: 100%; height: 100%;
           z-index: 99999;
-          background-color: #1e3a8a !important; /* Forza sfondo blu in stampa */
-          margin: 0;
-          padding: 0;
+          background-color: #1e3a8a !important;
+          margin: 0; padding: 0;
         }
-
-        /* Assicura che i colori di sfondo vengano stampati */
-        * {
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       }
     </style>
 <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "date-fns": "https://esm.sh/date-fns@^4.1.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
-    "recharts": "https://esm.sh/recharts@^3.5.1",
-    "react-dom": "https://esm.sh/react-dom@^19.2.3",
-    "vite": "https://esm.sh/vite@^7.2.7",
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/": "https://esm.sh/react-dom@19.0.0/",
+    "date-fns": "https://esm.sh/date-fns@4.1.0",
+    "date-fns/": "https://esm.sh/date-fns@4.1.0/",
+    "lucide-react": "https://esm.sh/lucide-react@0.460.0",
+    "recharts": "https://esm.sh/recharts@2.13.0",
+    "@neondatabase/serverless": "https://esm.sh/@neondatabase/serverless@0.9.0",
+    "vite": "https://esm.sh/vite@^7.3.0",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "@neondatabase/serverless": "https://esm.sh/@neondatabase/serverless@^1.0.2",
-    "date-fns/": "https://esm.sh/date-fns@^4.1.0/"
+    "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
 </script>
 </head>
   <body class="bg-gray-50 text-slate-800 antialiased h-screen overflow-hidden">
     <div id="root" class="h-full flex flex-col"></div>
-    <!-- Container separato per la stampa che esiste fuori da root -->
     <div id="print-root" class="print-area-container hidden"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

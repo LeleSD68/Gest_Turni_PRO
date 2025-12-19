@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 const generateDefaultContract = (id: string) => ([{ id: `c-${id}`, start: '2025-01-01' }]);
 
 const initialState: AppState = {
-  isAuthenticated: true, 
+  isAuthenticated: false, // Accesso protetto di default
   lastLogin: Date.now(),
   dataRevision: 0,
   currentDate: format(new Date(), 'yyyy-MM-01'),
@@ -140,7 +140,10 @@ type Action =
 const appReducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
     case 'LOGIN_SUCCESS': return { ...state, isAuthenticated: true };
-    case 'LOGOUT': return { ...state, isAuthenticated: false };
+    case 'LOGOUT': {
+      localStorage.removeItem('sm_token');
+      return { ...state, isAuthenticated: false };
+    }
     case 'SET_DATE': return { ...state, currentDate: action.payload };
     case 'UPDATE_CELL': {
       const key = `${action.payload.operatorId}_${action.payload.date}`;
@@ -214,6 +217,7 @@ interface AppContextType {
   saveToCloud: (force?: boolean) => Promise<void>;
   syncFromCloud: (force?: boolean) => Promise<void>;
   syncStatus: 'IDLE' | 'SYNCING' | 'SAVED' | 'ERROR';
+  syncErrorMessage: string;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -222,9 +226,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const loadInitialState = (): HistoryAwareState => {
     try {
       const stored = localStorage.getItem(CONSTANTS.STORAGE_KEY);
+      const token = localStorage.getItem('sm_token');
       if (stored) {
         const merged = { ...initialState, ...JSON.parse(stored) };
-        merged.isAuthenticated = true;
+        // Se c'è un token, proviamo a considerarlo autenticato (verrà validato dalla prima sync)
+        merged.isAuthenticated = !!token;
         merged.operators = merged.operators.map((op: any) => ({ ...op, matrixHistory: op.matrixHistory || [], contracts: op.contracts || [] }));
         return { past: [], present: merged, future: [] };
       }
@@ -235,16 +241,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [historyState, dispatch] = useReducer(historyReducer, undefined, loadInitialState);
   const state = historyState.present;
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'SAVED' | 'ERROR'>('IDLE');
+  const [syncErrorMessage, setSyncErrorMessage] = useState('');
 
-  useEffect(() => { localStorage.setItem(CONSTANTS.STORAGE_KEY, JSON.stringify(state)); }, [state]);
-
-  // Sincronizzazione automatica all'avvio
-  useEffect(() => {
-    syncFromCloud(true);
-  }, []);
+  useEffect(() => { 
+    if (state.isAuthenticated) {
+        localStorage.setItem(CONSTANTS.STORAGE_KEY, JSON.stringify(state)); 
+    }
+  }, [state]);
 
   const saveToCloud = async (force = false) => {
+    if (!state.isAuthenticated) return;
     setSyncStatus('SYNCING');
+    setSyncErrorMessage('');
     try {
       const token = localStorage.getItem('sm_token') || '';
       const response = await fetch('/api/db-sync', {
@@ -255,45 +263,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         },
         body: JSON.stringify(state),
       });
+      
       if (!response.ok) {
+         if (response.status === 401) {
+             dispatch({ type: 'LOGOUT' });
+             throw new Error('Sessione scaduta');
+         }
          const errData = await response.json().catch(() => ({}));
-         throw new Error(errData.error || 'Sync failed');
+         throw new Error(errData.error || `Errore HTTP ${response.status}`);
       }
+      
       setSyncStatus('SAVED');
       setTimeout(() => setSyncStatus('IDLE'), 2000);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Cloud Save Error:", e);
       setSyncStatus('ERROR');
+      setSyncErrorMessage(e.message || 'Errore di rete');
     }
   };
 
-  const syncFromCloud = async (force = false) => {
+  const syncFromCloud = useCallback(async (force = false) => {
+    const token = localStorage.getItem('sm_token');
+    if (!token) return;
+
     setSyncStatus('SYNCING');
+    setSyncErrorMessage('');
     try {
-      const token = localStorage.getItem('sm_token') || '';
       const response = await fetch('/api/db-sync', { 
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
       if (!response.ok) {
+          if (response.status === 401) {
+              dispatch({ type: 'LOGOUT' });
+              return;
+          }
           const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || 'Fetch failed');
+          throw new Error(errData.error || `Errore HTTP ${response.status}`);
       }
+      
       const data = await response.json();
       if (data && Object.keys(data).length > 0) {
-        // Applica i dati dal cloud solo se più recenti o se forzato
         if (force || (data.dataRevision || 0) > (state.dataRevision || 0)) {
           dispatch({ type: 'RESTORE_BACKUP', payload: data });
+          dispatch({ type: 'LOGIN_SUCCESS' });
         }
       }
       setSyncStatus('IDLE');
-    } catch (e) {
+    } catch (e: any) {
       console.error("Cloud Sync Error:", e);
       setSyncStatus('ERROR');
+      setSyncErrorMessage(e.message || 'Errore di rete');
     }
-  };
+  }, [state.dataRevision]);
 
-  return <AppContext.Provider value={{ state, dispatch, history: { canUndo: historyState.past.length > 0, canRedo: historyState.future.length > 0 }, saveToCloud, syncFromCloud, syncStatus }}>{children}</AppContext.Provider>;
+  // Sincronizzazione automatica all'avvio se c'è un token
+  useEffect(() => {
+    const token = localStorage.getItem('sm_token');
+    if (token) syncFromCloud(true);
+  }, []); 
+
+  return (
+    <AppContext.Provider value={{ 
+        state, 
+        dispatch, 
+        history: { canUndo: historyState.past.length > 0, canRedo: historyState.future.length > 0 }, 
+        saveToCloud, 
+        syncFromCloud, 
+        syncStatus,
+        syncErrorMessage 
+    }}>
+        {children}
+    </AppContext.Provider>
+  );
 };
 
 export const useApp = () => {

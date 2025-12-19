@@ -2,7 +2,7 @@
 import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { useApp } from '../store';
 import { Button, Card, Modal, Badge, Input } from '../components/UI';
-import { Download, Upload, AlertTriangle, CheckCircle, Calendar, Users, FileJson, RefreshCw, ListFilter, ArrowRightLeft, ShieldCheck, FileCheck, Settings, X, Database, CloudUpload, CloudDownload, Lock, Key } from 'lucide-react';
+import { Download, Upload, AlertTriangle, CheckCircle, Calendar, Users, FileJson, RefreshCw, ListFilter, ArrowRightLeft, ShieldCheck, FileCheck, Settings, X, Database, CloudUpload, CloudDownload, Lock, Key, AlertCircle } from 'lucide-react';
 import { AppState, PlannerEntry, SpecialEvent, CONSTANTS, Operator } from '../types';
 import { format, isValid } from 'date-fns';
 import { calculateMatrixShift, getShiftByCode, parseISO } from '../utils';
@@ -18,7 +18,7 @@ type ImportReport = {
 };
 
 export const DataManagement = () => {
-    const { state, dispatch, saveToCloud, syncFromCloud, syncStatus } = useApp();
+    const { state, dispatch, saveToCloud, syncFromCloud, syncStatus, syncErrorMessage } = useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
     const [showConfirmReset, setShowConfirmReset] = useState(false);
@@ -42,7 +42,7 @@ export const DataManagement = () => {
 
     const handleSaveToken = () => {
         localStorage.setItem('sm_token', cloudToken);
-        alert("Token salvato. Tenta ora una sincronizzazione.");
+        alert("Token salvato localmente. Tenta ora una sincronizzazione.");
         syncFromCloud(true);
     };
 
@@ -260,9 +260,20 @@ export const DataManagement = () => {
                                 <p className="text-xs opacity-80">Ultimo aggiornamento locale: {format(new Date(state.lastLogin), 'dd/MM/yyyy HH:mm:ss')}</p>
                             </div>
                             {syncStatus === 'ERROR' && (
-                                <Badge color="bg-red-100 text-red-700 animate-pulse">Problema di Connessione</Badge>
+                                <Badge color="bg-red-100 text-red-700 animate-pulse">Offline</Badge>
                             )}
                         </div>
+
+                        {syncStatus === 'ERROR' && syncErrorMessage && (
+                            <div className="bg-red-50 border border-red-200 p-3 rounded-md flex items-start gap-2 animate-in fade-in">
+                                <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                                <div className="text-xs text-red-700">
+                                    <p className="font-bold">Errore di Sincronizzazione:</p>
+                                    <p>{syncErrorMessage}</p>
+                                    <p className="mt-1 opacity-70">Verifica il "Codice di Accesso" o la connessione al database Neon.</p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Cloud Access Code Section */}
                         <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-inner">
@@ -272,9 +283,9 @@ export const DataManagement = () => {
                             <div className="flex flex-col sm:flex-row gap-3 items-end">
                                 <div className="flex-1 w-full">
                                     <Input 
-                                        label="Codice di Accesso Cloud (APP_ACCESS_CODE)" 
+                                        label="Codice di Accesso Cloud (Master Key)" 
                                         type="password"
-                                        placeholder="Inserisci il codice segreto..." 
+                                        placeholder="Inserisci il codice segreto per sbloccare il Cloud..." 
                                         value={cloudToken}
                                         onChange={(e) => setCloudToken(e.target.value)}
                                         className="mb-0"
@@ -285,30 +296,29 @@ export const DataManagement = () => {
                                 </Button>
                             </div>
                             <p className="text-[10px] text-slate-400 mt-2">
-                                * Se l'icona della nuvola è <strong>rossa</strong>, il codice inserito potrebbe essere errato o il database non è configurato.
+                                * Il codice deve corrispondere alla variabile <code>APP_ACCESS_CODE</code> impostata sul server.
                             </p>
                         </div>
                         
                         <div className="flex gap-4 pt-2">
                             <Button 
                                 onClick={() => saveToCloud(true)} 
-                                className="flex-1 flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                                className="flex-1 flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all active:scale-95"
                                 disabled={syncStatus === 'SYNCING'}
                             >
                                 <CloudUpload size={18} /> Forza Salvataggio su Cloud
                             </Button>
                             <Button 
-                                onClick={() => syncFromCloud(false)} 
+                                onClick={() => syncFromCloud(true)} 
                                 variant="secondary"
-                                className="flex-1 flex justify-center items-center gap-2"
+                                className="flex-1 flex justify-center items-center gap-2 shadow-sm transition-all active:scale-95"
                                 disabled={syncStatus === 'SYNCING'}
                             >
                                 <CloudDownload size={18} /> Forza Ripristino da Cloud
                             </Button>
                         </div>
                         <p className="text-xs text-slate-500 italic text-center">
-                            Usa "Forza Salvataggio" se hai importato dati e vuoi sovrascrivere il database. 
-                            Usa "Forza Ripristino" se vuoi scartare le modifiche locali e ricaricare dal server.
+                            "Salvataggio" rende definitiva la versione corrente per tutti. "Ripristino" scarica la versione ufficiale dal server.
                         </p>
                     </div>
                 </Card>
@@ -375,7 +385,7 @@ export const DataManagement = () => {
                             </div>
                             <div>
                                 <h3 className="font-bold text-green-800 text-lg">Importazione Completata!</h3>
-                                <p className="text-green-700 text-sm">I dati sono stati aggiornati correttamente nel sistema.</p>
+                                <p className="text-green-700 text-sm">I dati sono stati aggiornati correttamente nel sistema locale.</p>
                             </div>
                         </div>
 
@@ -442,6 +452,11 @@ export const DataManagement = () => {
                                      Nessun turno importato.
                                  </div>
                              )}
+                        </div>
+
+                        <div className="bg-blue-50 p-3 rounded text-xs text-blue-700 flex gap-2 items-center">
+                            <AlertCircle size={14} />
+                            <span><strong>Nota:</strong> Ricordati di cliccare su "Forza Salvataggio su Cloud" per rendere queste modifiche visibili agli altri.</span>
                         </div>
 
                         <div className="flex justify-end">

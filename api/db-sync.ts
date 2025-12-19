@@ -12,13 +12,12 @@ const corsHeaders = {
 };
 
 export default async function handler(request: Request) {
-  // Gestione preflight CORS
   if (request.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
+
+  // Fix: Use type assertion for Pool as the inferred types in this environment incorrectly expect 0 arguments and lack standard methods.
+  const pool = new (Pool as any)({ connectionString: process.env.DATABASE_URL }) as any;
 
   try {
     if (!process.env.DATABASE_URL) {
@@ -28,49 +27,38 @@ export default async function handler(request: Request) {
       });
     }
 
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const authHeader = request.headers.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
 
-    // Verifica Autorizzazione
+    // Verifica Autorizzazione Semplificata (Master Key)
     let isAuthenticated = false;
-    
-    // Se non c'è una master key impostata, permettiamo l'accesso (setup iniziale)
     if (!process.env.APP_ACCESS_CODE) {
-        isAuthenticated = true;
+        isAuthenticated = true; // Permesso se non configurato (setup iniziale)
     } else if (token && token === process.env.APP_ACCESS_CODE) {
         isAuthenticated = true;
-    } else if (token) {
-        // Verifica se è un token di sessione valido
-        const { rows } = await pool.query('SELECT username FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
-        if (rows.length > 0) {
-            isAuthenticated = true;
-        }
     }
 
     if (!isAuthenticated) {
-      await pool.end();
-      return new Response(JSON.stringify({ error: 'Accesso Cloud negato: Codice non valido o mancante' }), { 
+      return new Response(JSON.stringify({ error: 'Codice Cloud non valido o mancante' }), { 
         status: 401, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
 
-    // Inizializzazione Tabelle se non esistono
+    // Inizializzazione Tabelle (Garantita per ogni tipo di richiesta)
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS shiftmaster_state (
+            id INT PRIMARY KEY DEFAULT 1,
+            data JSONB,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            CONSTRAINT single_row CHECK (id = 1)
+        );
+    `);
+
     if (request.method === 'GET') {
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS shiftmaster_state (
-                id INT PRIMARY KEY DEFAULT 1,
-                data JSONB,
-                updated_at TIMESTAMP DEFAULT NOW(),
-                CONSTRAINT single_row CHECK (id = 1)
-            );
-        `);
-        
         const { rows } = await pool.query('SELECT data FROM shiftmaster_state WHERE id = 1');
         const data = rows.length > 0 ? rows[0].data : {};
         
-        await pool.end();
         return new Response(JSON.stringify(data), { 
             status: 200, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -87,20 +75,26 @@ export default async function handler(request: Request) {
             SET data = $1, updated_at = NOW()
         `, [JSON.stringify(body)]);
         
-        await pool.end();
         return new Response(JSON.stringify({ success: true }), { 
             status: 200, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         });
     }
 
-    return new Response('Method not allowed', { status: 405, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: 'Metodo non supportato' }), { 
+        status: 405, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
 
   } catch (err: any) {
-      console.error("Database Error:", err);
-      return new Response(JSON.stringify({ error: `Errore Database: ${err.message}` }), { 
+      console.error("Database API Error:", err);
+      return new Response(JSON.stringify({ error: `Errore Server: ${err.message}` }), { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
+  } finally {
+      // In Edge runtime pool.end() non è sempre necessario o può causare problemi se fatto prematuramente
+      // ma con @neondatabase/serverless è buona norma se non si usa una connessione persistente
+      await pool.end().catch(() => {});
   }
 }
