@@ -16,8 +16,7 @@ export default async function handler(request: Request) {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
-  // Fix: Use type assertion for Pool as the inferred types in this environment incorrectly expect 0 arguments and lack standard methods.
-  const pool = new (Pool as any)({ connectionString: process.env.DATABASE_URL }) as any;
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
   try {
     if (!process.env.DATABASE_URL) {

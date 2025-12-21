@@ -1,13 +1,11 @@
-
 import React, { createContext, useContext, useReducer, useEffect, useState, useCallback } from 'react';
 import { AppState, CONSTANTS, Operator, ShiftType, Matrix, LogEntry, CallEntry, PlannerEntry, Assignment, AssignmentEntry, HistoryAwareState, DayNote } from './types';
 import { format } from 'date-fns';
 
-// --- Stato Iniziale ---
 const generateDefaultContract = (id: string) => ([{ id: `c-${id}`, start: '2025-01-01' }]);
 
 const initialState: AppState = {
-  isAuthenticated: false, // Accesso protetto di default
+  isAuthenticated: false,
   lastLogin: Date.now(),
   dataRevision: 0,
   currentDate: format(new Date(), 'yyyy-MM-01'),
@@ -63,30 +61,10 @@ const initialState: AppState = {
     { id: 'ambra', code: 'Ambra', name: 'Piano terra 16-17', color: '#f59e0b' },
   ],
   matrices: [
-    {
-      id: 'm1',
-      name: 'Matrice Standard',
-      color: '#e0f2fe', 
-      sequence: ['M8', 'M7', 'P', 'R', 'M8', 'M7', 'P', 'R', 'M8', 'P', 'N', 'SN', 'R', 'M8', 'M7', 'P', 'R', 'M8', 'M7', 'P', 'R', 'M7', 'P', 'N', 'SN', 'R']
-    },
-    {
-      id: 'm2',
-      name: 'Matrice Prescrizioni',
-      color: '#fef3c7', 
-      sequence: ['DM', 'DM', 'DP', 'DP', 'R', 'R']
-    },
-    {
-      id: 'm3',
-      name: 'Matrice Gennaio',
-      color: '#dcfce7', 
-      sequence: ['M8', 'P', 'N', 'SN', 'R', 'M8', 'M8', 'P', 'R']
-    },
-    {
-      id: 'm4',
-      name: 'Matrice Fuori Turno',
-      color: '#f3e8ff', 
-      sequence: ['M8', 'M8', 'P', 'P', 'R', 'R']
-    }
+    { id: 'm1', name: 'Matrice Standard', color: '#e0f2fe', sequence: ['M8', 'M7', 'P', 'R', 'M8', 'M7', 'P', 'R', 'M8', 'P', 'N', 'SN', 'R', 'M8', 'M7', 'P', 'R', 'M8', 'M7', 'P', 'R', 'M7', 'P', 'N', 'SN', 'R'] },
+    { id: 'm2', name: 'Matrice Prescrizioni', color: '#fef3c7', sequence: ['DM', 'DM', 'DP', 'DP', 'R', 'R'] },
+    { id: 'm3', name: 'Matrice Gennaio', color: '#dcfce7', sequence: ['M8', 'P', 'N', 'SN', 'R', 'M8', 'M8', 'P', 'R'] },
+    { id: 'm4', name: 'Matrice Fuori Turno', color: '#f3e8ff', sequence: ['M8', 'M8', 'P', 'P', 'R', 'R'] }
   ],
   plannerData: {},
   assignmentData: {},
@@ -97,11 +75,7 @@ const initialState: AppState = {
   config: {
     minRestHours: 11,
     maxConsecutiveDays: 6,
-    coverage: {
-      'M8': { min: 2, optimal: 3 },
-      'P': { min: 2, optimal: 3 },
-      'N': { min: 1, optimal: 2 },
-    },
+    coverage: { 'M8': { min: 2, optimal: 3 }, 'P': { min: 2, optimal: 3 }, 'N': { min: 1, optimal: 2 } },
     ai: { enabled: false, provider: 'OLLAMA', baseUrl: 'http://localhost:11434', model: 'llama3' },
     googleScriptUrl: ''
   },
@@ -127,9 +101,6 @@ type Action =
   | { type: 'ADD_MATRIX'; payload: Matrix }
   | { type: 'UPDATE_MATRIX'; payload: Matrix }
   | { type: 'DELETE_MATRIX'; payload: string }
-  | { type: 'ADD_ASSIGNMENT_TYPE'; payload: Assignment }
-  | { type: 'UPDATE_ASSIGNMENT_TYPE'; payload: Assignment }
-  | { type: 'DELETE_ASSIGNMENT_TYPE'; payload: string }
   | { type: 'UPDATE_DAY_NOTE'; payload: { date: string; note: string | DayNote } }
   | { type: 'REORDER_OPERATORS'; payload: Operator[] }
   | { type: 'LOGIN_SUCCESS' }
@@ -140,48 +111,25 @@ type Action =
 const appReducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
     case 'LOGIN_SUCCESS': return { ...state, isAuthenticated: true };
-    case 'LOGOUT': {
-      localStorage.removeItem('sm_token');
-      return { ...state, isAuthenticated: false };
-    }
+    case 'LOGOUT': { localStorage.removeItem('sm_token'); return { ...state, isAuthenticated: false }; }
     case 'SET_DATE': return { ...state, currentDate: action.payload };
-    case 'UPDATE_CELL': {
-      const key = `${action.payload.operatorId}_${action.payload.date}`;
-      return { ...state, plannerData: { ...state.plannerData, [key]: action.payload } };
-    }
-    case 'REMOVE_CELL': {
-      const keyToRemove = `${action.payload.operatorId}_${action.payload.date}`;
-      const updatedPlannerData = { ...state.plannerData };
-      delete updatedPlannerData[keyToRemove];
-      return { ...state, plannerData: updatedPlannerData };
-    }
-    case 'BATCH_UPDATE': {
-      const newPlannerData = { ...state.plannerData };
-      action.payload.forEach(entry => { newPlannerData[`${entry.operatorId}_${entry.date}`] = entry; });
-      return { ...state, plannerData: newPlannerData };
-    }
-    case 'UPDATE_ASSIGNMENT': {
-      const key = `${action.payload.operatorId}_${action.payload.date}`;
-      return { ...state, assignmentData: { ...state.assignmentData, [key]: action.payload } };
-    }
-    case 'REMOVE_ASSIGNMENT': {
-      const key = `${action.payload.operatorId}_${action.payload.date}`;
-      const updated = { ...state.assignmentData };
-      delete updated[key];
-      return { ...state, assignmentData: updated };
-    }
+    case 'UPDATE_CELL': { const key = `${action.payload.operatorId}_${action.payload.date}`; return { ...state, plannerData: { ...state.plannerData, [key]: action.payload } }; }
+    case 'REMOVE_CELL': { const key = `${action.payload.operatorId}_${action.payload.date}`; const updated = { ...state.plannerData }; delete updated[key]; return { ...state, plannerData: updated }; }
+    case 'BATCH_UPDATE': { const updated = { ...state.plannerData }; action.payload.forEach(e => { updated[`${e.operatorId}_${e.date}`] = e; }); return { ...state, plannerData: updated }; }
+    case 'UPDATE_ASSIGNMENT': { const key = `${action.payload.operatorId}_${action.payload.date}`; return { ...state, assignmentData: { ...state.assignmentData, [key]: action.payload } }; }
+    case 'REMOVE_ASSIGNMENT': { const key = `${action.payload.operatorId}_${action.payload.date}`; const updated = { ...state.assignmentData }; delete updated[key]; return { ...state, assignmentData: updated }; }
     case 'ADD_LOG': return { ...state, logs: [action.payload, ...state.logs] };
     case 'UPDATE_CONFIG': return { ...state, config: { ...state.config, ...action.payload } };
-    case 'RESTORE_BACKUP': {
-      const incoming = action.payload;
-      return {
-        ...initialState, ...incoming, isAuthenticated: true,
-        operators: (incoming.operators || []).map(op => ({ ...op, contracts: op.contracts || [], matrixHistory: op.matrixHistory || [] }))
-      };
-    }
+    case 'RESTORE_BACKUP': return { ...initialState, ...action.payload, isAuthenticated: true };
     case 'ADD_OPERATOR': return { ...state, operators: [...state.operators, action.payload] };
     case 'UPDATE_OPERATOR': return { ...state, operators: state.operators.map(op => op.id === action.payload.id ? action.payload : op) };
     case 'DELETE_OPERATOR': return { ...state, operators: state.operators.filter(op => op.id !== action.payload) };
+    case 'ADD_SHIFT': return { ...state, shiftTypes: [...state.shiftTypes, action.payload] };
+    case 'UPDATE_SHIFT': return { ...state, shiftTypes: state.shiftTypes.map(s => s.id === action.payload.id ? action.payload : s) };
+    case 'DELETE_SHIFT': return { ...state, shiftTypes: state.shiftTypes.filter(s => s.id !== action.payload) };
+    case 'ADD_MATRIX': return { ...state, matrices: [...state.matrices, action.payload] };
+    case 'UPDATE_MATRIX': return { ...state, matrices: state.matrices.map(m => m.id === action.payload.id ? action.payload : m) };
+    case 'DELETE_MATRIX': return { ...state, matrices: state.matrices.filter(m => m.id !== action.payload) };
     case 'UPDATE_DAY_NOTE': return { ...state, dayNotes: { ...state.dayNotes, [action.payload.date]: action.payload.note } };
     case 'REORDER_OPERATORS': return { ...state, operators: action.payload };
     default: return state;
@@ -190,24 +138,13 @@ const appReducer = (state: AppState, action: Action): AppState => {
 
 const historyReducer = (state: HistoryAwareState, action: Action): HistoryAwareState => {
   const { past, present, future } = state;
-  if (action.type === 'UNDO' && past.length > 0) {
-    const prev = past[past.length - 1];
-    return { past: past.slice(0, -1), present: prev, future: [present, ...future] };
-  }
-  if (action.type === 'REDO' && future.length > 0) {
-    const next = future[0];
-    return { past: [...past, present], present: next, future: future.slice(1) };
-  }
+  if (action.type === 'UNDO' && past.length > 0) { const prev = past[past.length - 1]; return { past: past.slice(0, -1), present: prev, future: [present, ...future] }; }
+  if (action.type === 'REDO' && future.length > 0) { const next = future[0]; return { past: [...past, present], present: next, future: future.slice(1) }; }
   const isHistoryAction = !['SET_DATE', 'LOGIN_SUCCESS', 'LOGOUT', 'RESTORE_BACKUP'].includes(action.type);
-  if (!isHistoryAction) {
-    const newPresent = appReducer(present, action);
-    if (action.type === 'RESTORE_BACKUP') return { past: [], present: newPresent, future: [] };
-    return { ...state, present: newPresent };
-  }
+  if (!isHistoryAction) { const newPresent = appReducer(present, action); return { ...state, present: newPresent }; }
   const newPresent = appReducer(present, action);
   if (newPresent === present) return state;
-  const nextPresent = { ...newPresent, dataRevision: (present.dataRevision || 0) + 1 };
-  return { past: [...past, present].slice(-CONSTANTS.HISTORY_LIMIT), present: nextPresent, future: [] };
+  return { past: [...past, present].slice(-CONSTANTS.HISTORY_LIMIT), present: { ...newPresent, dataRevision: (present.dataRevision || 0) + 1 }, future: [] };
 };
 
 interface AppContextType {
@@ -229,9 +166,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const token = localStorage.getItem('sm_token');
       if (stored) {
         const merged = { ...initialState, ...JSON.parse(stored) };
-        // Se c'è un token, proviamo a considerarlo autenticato (verrà validato dalla prima sync)
         merged.isAuthenticated = !!token;
-        merged.operators = merged.operators.map((op: any) => ({ ...op, matrixHistory: op.matrixHistory || [], contracts: op.contracts || [] }));
         return { past: [], present: merged, future: [] };
       }
     } catch (e) {}
@@ -244,39 +179,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [syncErrorMessage, setSyncErrorMessage] = useState('');
 
   useEffect(() => { 
-    if (state.isAuthenticated) {
-        localStorage.setItem(CONSTANTS.STORAGE_KEY, JSON.stringify(state)); 
-    }
+    if (state.isAuthenticated) { localStorage.setItem(CONSTANTS.STORAGE_KEY, JSON.stringify(state)); }
   }, [state]);
 
   const saveToCloud = async (force = false) => {
     if (!state.isAuthenticated) return;
+    const token = localStorage.getItem('sm_token');
+    
+    // Bypass cloud for local-demo
+    if (!token || token === 'local-demo-token') {
+        console.log("Salvataggio locale completato (Modalità Demo)");
+        setSyncStatus('SAVED');
+        setTimeout(() => setSyncStatus('IDLE'), 1000);
+        return;
+    }
+
     setSyncStatus('SYNCING');
     setSyncErrorMessage('');
     try {
-      const token = localStorage.getItem('sm_token') || '';
       const response = await fetch('/api/db-sync', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(state),
       });
-      
-      if (!response.ok) {
-         if (response.status === 401) {
-             dispatch({ type: 'LOGOUT' });
-             throw new Error('Sessione scaduta');
-         }
-         const errData = await response.json().catch(() => ({}));
-         throw new Error(errData.error || `Errore HTTP ${response.status}`);
+      if (!response.ok) { 
+          if (response.status === 401) dispatch({ type: 'LOGOUT' }); 
+          throw new Error(`Errore HTTP ${response.status}`); 
       }
-      
       setSyncStatus('SAVED');
       setTimeout(() => setSyncStatus('IDLE'), 2000);
     } catch (e: any) {
-      console.error("Cloud Save Error:", e);
       setSyncStatus('ERROR');
       setSyncErrorMessage(e.message || 'Errore di rete');
     }
@@ -284,55 +216,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const syncFromCloud = useCallback(async (force = false) => {
     const token = localStorage.getItem('sm_token');
-    if (!token) return;
+    if (!token || token === 'local-demo-token') return;
 
     setSyncStatus('SYNCING');
-    setSyncErrorMessage('');
     try {
       const response = await fetch('/api/db-sync', { 
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` }
+          method: 'GET', 
+          headers: { 'Authorization': `Bearer ${token}` } 
       });
-      
-      if (!response.ok) {
-          if (response.status === 401) {
-              dispatch({ type: 'LOGOUT' });
-              return;
+      if (response.ok) {
+        const data = await response.json();
+        if (data && Object.keys(data).length > 0) {
+          if (force || (data.dataRevision || 0) > (state.dataRevision || 0)) {
+            dispatch({ type: 'RESTORE_BACKUP', payload: data });
+            dispatch({ type: 'LOGIN_SUCCESS' });
           }
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || `Errore HTTP ${response.status}`);
-      }
-      
-      const data = await response.json();
-      if (data && Object.keys(data).length > 0) {
-        if (force || (data.dataRevision || 0) > (state.dataRevision || 0)) {
-          dispatch({ type: 'RESTORE_BACKUP', payload: data });
-          dispatch({ type: 'LOGIN_SUCCESS' });
         }
       }
       setSyncStatus('IDLE');
-    } catch (e: any) {
-      console.error("Cloud Sync Error:", e);
+    } catch (e) {
+      console.warn("Sincronizzazione cloud non disponibile:", e);
       setSyncStatus('ERROR');
-      setSyncErrorMessage(e.message || 'Errore di rete');
     }
   }, [state.dataRevision]);
 
-  // Sincronizzazione automatica all'avvio se c'è un token
   useEffect(() => {
     const token = localStorage.getItem('sm_token');
-    if (token) syncFromCloud(true);
-  }, []); 
+    if (token && token !== 'local-demo-token') {
+        syncFromCloud(true).catch(() => {});
+    }
+  }, [syncFromCloud]); 
 
   return (
     <AppContext.Provider value={{ 
-        state, 
-        dispatch, 
+        state, dispatch, 
         history: { canUndo: historyState.past.length > 0, canRedo: historyState.future.length > 0 }, 
-        saveToCloud, 
-        syncFromCloud, 
-        syncStatus,
-        syncErrorMessage 
+        saveToCloud, syncFromCloud, syncStatus, syncErrorMessage 
     }}>
         {children}
     </AppContext.Provider>
