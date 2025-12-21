@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useReducer, useEffect, useState, useCallback } from 'react';
 import { AppState, CONSTANTS, Operator, ShiftType, Matrix, LogEntry, CallEntry, PlannerEntry, Assignment, AssignmentEntry, HistoryAwareState, DayNote } from './types';
 import { format } from 'date-fns';
@@ -140,8 +141,15 @@ const historyReducer = (state: HistoryAwareState, action: Action): HistoryAwareS
   const { past, present, future } = state;
   if (action.type === 'UNDO' && past.length > 0) { const prev = past[past.length - 1]; return { past: past.slice(0, -1), present: prev, future: [present, ...future] }; }
   if (action.type === 'REDO' && future.length > 0) { const next = future[0]; return { past: [...past, present], present: next, future: future.slice(1) }; }
-  const isHistoryAction = !['SET_DATE', 'LOGIN_SUCCESS', 'LOGOUT', 'RESTORE_BACKUP'].includes(action.type);
-  if (!isHistoryAction) { const newPresent = appReducer(present, action); return { ...state, present: newPresent }; }
+  
+  // Non salviamo in cronologia le azioni di configurazione pura per evitare blocchi durante la digitazione URL
+  const isHistoryAction = !['SET_DATE', 'LOGIN_SUCCESS', 'LOGOUT', 'RESTORE_BACKUP', 'UPDATE_CONFIG'].includes(action.type);
+  
+  if (!isHistoryAction) { 
+    const newPresent = appReducer(present, action); 
+    return { ...state, present: newPresent }; 
+  }
+  
   const newPresent = appReducer(present, action);
   if (newPresent === present) return state;
   return { past: [...past, present].slice(-CONSTANTS.HISTORY_LIMIT), present: { ...newPresent, dataRevision: (present.dataRevision || 0) + 1 }, future: [] };
@@ -186,9 +194,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!state.isAuthenticated) return;
     const token = localStorage.getItem('sm_token');
     
-    // Bypass cloud for local-demo
     if (!token || token === 'local-demo-token') {
-        console.log("Salvataggio locale completato (Modalità Demo)");
         setSyncStatus('SAVED');
         setTimeout(() => setSyncStatus('IDLE'), 1000);
         return;
@@ -227,6 +233,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (response.ok) {
         const data = await response.json();
         if (data && Object.keys(data).length > 0) {
+          // Ripristiniamo solo se forzato o se la revisione cloud è maggiore (e non siamo in fase di scrittura)
           if (force || (data.dataRevision || 0) > (state.dataRevision || 0)) {
             dispatch({ type: 'RESTORE_BACKUP', payload: data });
             dispatch({ type: 'LOGIN_SUCCESS' });
@@ -235,17 +242,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       setSyncStatus('IDLE');
     } catch (e) {
-      console.warn("Sincronizzazione cloud non disponibile:", e);
       setSyncStatus('ERROR');
     }
   }, [state.dataRevision]);
 
+  // CRITICO: Eseguiamo la sincronizzazione solo all'avvio o quando richiesto esplicitamente
+  // Questo impedisce all'app di "resettare" i campi mentre l'utente scrive
   useEffect(() => {
     const token = localStorage.getItem('sm_token');
     if (token && token !== 'local-demo-token') {
         syncFromCloud(true).catch(() => {});
     }
-  }, [syncFromCloud]); 
+    // Rimuoviamo syncFromCloud dalle dipendenze per evitare loop infiniti
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); 
 
   return (
     <AppContext.Provider value={{ 
