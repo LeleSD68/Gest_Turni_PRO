@@ -7,28 +7,12 @@ import { format } from 'date-fns';
 const ITALIAN_MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
 const ITALIAN_DAYS = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
 
-// Helper per festività italiane
 const isItalianHoliday = (date: Date) => {
   const day = date.getDate();
-  const month = date.getMonth() + 1; // 0-indexed
+  const month = date.getMonth() + 1; 
   const isSunday = date.getDay() === 0;
-  
   if (isSunday) return true;
-
-  // Elenco festività fisse (giorno-mese)
-  const holidays = [
-    '1-1',   // Capodanno
-    '6-1',   // Epifania
-    '25-4',  // Liberazione
-    '1-5',   // Lavoro
-    '2-6',   // Repubblica
-    '15-8',  // Ferragosto
-    '1-11',  // Ognissanti
-    '8-12',  // Immacolata
-    '25-12', // Natale
-    '26-12'  // Santo Stefano
-  ];
-  
+  const holidays = ['1-1', '6-1', '25-4', '1-5', '2-6', '15-8', '1-11', '8-12', '25-12', '26-12'];
   return holidays.includes(`${day}-${month}`);
 };
 
@@ -36,7 +20,6 @@ export const PrintLayout = () => {
   const { state } = useApp();
   const days = getMonthDays(state.currentDate);
 
-  // Helper per estrarre l'orario dalla descrizione
   const extractTime = (name: string) => {
     const match = name.match(/\((.*?)\)/);
     return match ? match[1] : '';
@@ -44,20 +27,18 @@ export const PrintLayout = () => {
 
   return (
     <div 
-      id="printable-content"
-      className="p-6 font-sans w-full text-xs min-h-[297mm] relative flex flex-col"
+      className="p-6 font-sans flex flex-col"
       style={{ 
-        width: '420mm', // A3 Landscape width fixed
-        height: '297mm', // A3 Landscape height fixed
-        backgroundColor: '#1e3a8a', // Sfondo blu scuro
+        width: '100%',
+        maxWidth: '420mm', // A3 Landscape limit
+        minHeight: '280mm',
+        backgroundColor: '#1e3a8a', 
         color: 'white',
         WebkitPrintColorAdjust: 'exact', 
         printColorAdjust: 'exact',
         margin: '0 auto'
       }}
     >
-      
-      {/* Header */}
       <div className="flex justify-between items-end mb-6 border-b-2 border-blue-400 pb-4">
         <div>
           <h1 className="text-4xl font-bold uppercase tracking-wider mb-2">Turni Personale</h1>
@@ -74,7 +55,6 @@ export const PrintLayout = () => {
         </div>
       </div>
       
-      {/* Griglia Turni - Sfondo Bianco */}
       <div className="bg-white text-black rounded-sm overflow-hidden shadow-sm flex-1">
         <table className="w-full border-collapse border border-slate-400 h-full table-fixed">
           <thead>
@@ -105,16 +85,13 @@ export const PrintLayout = () => {
           </thead>
           <tbody>
             {state.operators.filter(o => o.isActive).map(op => {
-              // Calcolo ore totali per questo operatore nel mese visualizzato
               const totalHours = days.reduce((acc, d) => {
                 const dk = formatDateKey(d);
                 if (!isOperatorEmployed(op, dk)) return acc;
-                
                 const entry = getEntry(state, op.id, dk);
                 const mxCode = calculateMatrixShift(op, dk, state.matrices);
                 const code = entry?.shiftCode || mxCode || '';
                 const st = state.shiftTypes.find(s => s.code === code);
-                
                 let h = 0;
                 if (entry?.customHours !== undefined) {
                   h = entry.customHours;
@@ -126,8 +103,6 @@ export const PrintLayout = () => {
                     h = st.hours;
                   }
                 }
-                
-                // Eventi speciali (Straordinari, etc)
                 if (entry?.specialEvents) {
                   entry.specialEvents.forEach(ev => {
                     if (ev.mode === 'ADDITIVE' || !ev.mode) h += ev.hours;
@@ -148,8 +123,6 @@ export const PrintLayout = () => {
                   {days.map(d => {
                     const dateKey = formatDateKey(d);
                     const isHol = isItalianHoliday(d);
-                    
-                    // Controllo se assunto
                     if (!isOperatorEmployed(op, dateKey)) {
                        return (
                         <td 
@@ -164,19 +137,11 @@ export const PrintLayout = () => {
                         ></td>
                        );
                     }
-
                     const entry = getEntry(state, op.id, dateKey);
                     const matrixShift = calculateMatrixShift(op, dateKey, state.matrices);
                     const code = entry?.shiftCode || matrixShift || '';
                     const shift = state.shiftTypes.find(s => s.code === code);
-                    
-                    let bg = 'transparent';
-                    if (shift?.color) {
-                        bg = `${shift.color}60`; 
-                    } else if (isHol) {
-                        bg = '#eff6ff'; 
-                    }
-
+                    let bg = shift?.color ? `${shift.color}60` : (isHol ? '#eff6ff' : 'transparent');
                     return (
                       <td 
                         key={dateKey} 
@@ -198,7 +163,6 @@ export const PrintLayout = () => {
         </table>
       </div>
       
-      {/* Legenda - Solo Sigla e Orario */}
       <div className="mt-6 pt-4 border-t-2 border-blue-400">
          <div className="text-center font-bold uppercase text-xs mb-3 tracking-widest opacity-80">Legenda Orari</div>
          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
@@ -226,14 +190,11 @@ export const PrintLayout = () => {
          </div>
       </div>
 
-      {/* Footer: Data e Firma */}
       <div className="mt-auto pt-8 flex justify-between items-end">
          <div className="text-blue-200 italic text-xs mb-1">
             <div>Aggiornato il:</div>
             <div className="font-bold">{format(new Date(), 'dd/MM/yyyy')} <span className="font-normal">alle</span> {format(new Date(), 'HH:mm')}</div>
          </div>
-         
-         {/* Riquadro Firma - SFONDO BIANCO ESPLICITO */}
          <div 
             className="p-4 rounded-sm w-80 shadow-sm"
             style={{
@@ -247,7 +208,6 @@ export const PrintLayout = () => {
             <div className="font-bold text-[10px] uppercase tracking-wide text-center text-slate-700">Il Responsabile Sanitario</div>
          </div>
       </div>
-
     </div>
   );
 };

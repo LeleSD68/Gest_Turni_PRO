@@ -1,5 +1,5 @@
-
 import React, { useState, useMemo, useRef, useEffect, Fragment } from 'react';
+import { createPortal } from 'react-dom'; // Importante per la stampa
 import { useApp } from '../store';
 import { getMonthDays, formatDateKey, getEntry, calculateMatrixShift, validateCell, getShiftByCode, getSuggestions, parseISO, isOperatorEmployed, getItalianHolidayName, startOfMonth, startOfWeek, endOfWeek, subWeeks, addWeeks, endOfMonth, isItalianHoliday } from '../utils';
 import { format, isToday, isWeekend, addMonths, differenceInDays, addDays, isWithinInterval, isSameMonth, isSunday, isBefore, eachDayOfInterval, isSaturday } from 'date-fns';
@@ -10,7 +10,6 @@ import { OperatorDetailModal } from '../components/OperatorDetailModal';
 import { PrintLayout } from '../components/PrintLayout';
 import { TimesheetPrintLayout } from '../components/TimesheetPrintLayout';
 
-// Unified Display Mode Type
 type DisplayMode = 'PLANNER_STANDARD' | 'PLANNER_MINIMAL' | 'PLANNER_DETAILED' | 'MATRIX_ONLY' | 'MATRIX_DIFF';
 
 type LastOperation = {
@@ -39,7 +38,6 @@ const NOTE_TYPES: Record<DayNoteType, { icon: React.ElementType, color: string, 
 export const Planner = () => {
   const { state, dispatch, history, syncStatus, saveToCloud } = useApp();
   
-  // State management
   const [displayMode, setDisplayMode] = useState<DisplayMode>('PLANNER_STANDARD');
   const [viewSpan, setViewSpan] = useState<'MONTH' | 'WEEK'>('MONTH');
   const [selectedCell, setSelectedCell] = useState<{ opId: string; date: string } | null>(null);
@@ -52,7 +50,6 @@ export const Planner = () => {
   const [isCoverageExpanded, setIsCoverageExpanded] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   
-  // Coverage detail popover
   const [coveragePopover, setCoveragePopover] = useState<{ date: string; x: number; y: number } | null>(null);
   const [cellPopupPosition, setCellPopupPosition] = useState<{x: number, y: number, align: 'top' | 'bottom'} | null>(null);
   const [multiSelectPopupPosition, setMultiSelectPopupPosition] = useState<{x: number, y: number} | null>(null);
@@ -60,7 +57,6 @@ export const Planner = () => {
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const [hoveredOpId, setHoveredOpId] = useState<string | null>(null);
   
-  // Filters
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem('planner_searchTerm') || '');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'ACTIVE' | 'INACTIVE' | 'MODIFIED' | 'EXTRA'>(() => {
@@ -69,10 +65,6 @@ export const Planner = () => {
   });
   const [filterMatrix, setFilterMatrix] = useState<string>(() => localStorage.getItem('planner_filterMatrix') || 'ALL');
   
-  useEffect(() => { localStorage.setItem('planner_searchTerm', searchTerm); }, [searchTerm]);
-  useEffect(() => { localStorage.setItem('planner_filterStatus', filterStatus); }, [filterStatus]);
-  useEffect(() => { localStorage.setItem('planner_filterMatrix', filterMatrix); }, [filterMatrix]);
-
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [printLayoutMode, setPrintLayoutMode] = useState<'VISUAL' | 'TIMESHEET'>('VISUAL');
   const isMatrixView = displayMode === 'MATRIX_ONLY' || displayMode === 'MATRIX_DIFF';
@@ -116,7 +108,6 @@ export const Planner = () => {
   const [newSpecialHoursMode, setNewSpecialHoursMode] = useState<'ADDITIVE' | 'SUBSTITUTIVE' | 'SUBTRACTIVE'>('ADDITIVE');
   const [isSpecialMode, setIsSpecialMode] = useState(false);
 
-  // Derived Data
   const days = useMemo(() => {
       const date = parseISO(state.currentDate);
       if (viewSpan === 'WEEK') {
@@ -759,7 +750,7 @@ export const Planner = () => {
     setDraftSpecialEvents(entry?.specialEvents || []);
     setIsSpecialMode((entry?.specialEvents && entry.specialEvents.length > 0) || false);
     
-    const popupHeight = 350; // Increased to accommodate new info
+    const popupHeight = 350; 
     const popupWidth = 300;
     const screenHeight = window.innerHeight;
     const screenWidth = window.innerWidth;
@@ -849,7 +840,7 @@ export const Planner = () => {
           let finalSpecialEvents = [...draftSpecialEvents];
           if (isSpecialMode && (newSpecialHours !== '' || (newSpecialStart && newSpecialEnd))) {
               const hours = typeof newSpecialHours === 'number' ? newSpecialHours : 0;
-              finalSpecialEvents.push({ id: crypto.randomUUID(), type: newSpecialType, startTime: newSpecialStart, endTime: newSpecialEnd, hours: hours, mode: newSpecialHoursMode });
+              finalSpecialEvents.push({ id: crypto.randomUUID(), type: newSpecialType, hours: hours, startTime: newSpecialStart, endTime: newSpecialEnd, mode: newSpecialHoursMode });
           }
           let codeToApply = draftShift;
           if (codeToApply === 'FE' && isSunday(parseISO(dateTarget))) codeToApply = 'R';
@@ -1133,8 +1124,18 @@ export const Planner = () => {
       );
   };
 
+  const printRoot = document.getElementById('print-root');
+
   return (
     <div className="flex flex-col h-full bg-white w-full overflow-hidden" onClick={clearSelection}>
+      {/* Portale per la Stampa - Risolve il problema del rettangolo blu */}
+      {showPrintPreview && printRoot && createPortal(
+        <div className="bg-white p-8 w-full min-h-screen">
+          {printLayoutMode === 'VISUAL' ? <PrintLayout /> : <TimesheetPrintLayout />}
+        </div>,
+        printRoot
+      )}
+
       {showPrintPreview && (
         <div className="fixed inset-0 z-[100] bg-white overflow-auto flex flex-col animate-in fade-in duration-200">
            <div className="shrink-0 p-4 border-b bg-slate-50 flex justify-between items-center no-print sticky top-0 shadow-sm z-50">
@@ -1145,7 +1146,7 @@ export const Planner = () => {
            <div className="flex-1 p-4 md:p-8 overflow-auto bg-slate-100 flex justify-center"><div className="bg-white shadow-xl p-8 max-w-[1400px] w-full min-h-screen print-area">{printLayoutMode === 'VISUAL' ? <PrintLayout /> : <TimesheetPrintLayout />}</div></div>
         </div>
       )}
-      {!showPrintPreview && <div className="print-only hidden print-area">{printLayoutMode === 'VISUAL' ? <PrintLayout /> : <TimesheetPrintLayout />}</div>}
+
       <div className="md:hidden flex items-center justify-between p-2 border-b bg-slate-50 sticky top-0 z-50"><div className="flex items-center gap-2 font-bold text-slate-700"><CalendarDays size={18} className="text-blue-600" /><span>Planner</span></div><button onClick={() => setIsMobileToolbarOpen(!isMobileToolbarOpen)} className={`p-2 rounded-lg transition-colors ${isMobileToolbarOpen ? 'bg-blue-100 text-blue-700' : 'bg-white text-slate-600 border'}`}>{isMobileToolbarOpen ? <XCircle size={20} /> : <Settings2 size={20} />}</button></div>
       <div className={`p-2 md:p-4 border-b border-slate-200 bg-white shadow-sm z-40 gap-2 no-print ${isMobileToolbarOpen ? 'flex flex-wrap items-center justify-between' : 'hidden md:flex flex-wrap items-center justify-between'}`} onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-2 min-w-0"><button onClick={() => saveToCloud(true)} disabled={syncStatus === 'SYNCING'} className="hidden lg:flex items-center mr-2 px-2 py-1 bg-slate-50 rounded border border-slate-200 hover:bg-blue-50 cursor-pointer transition-colors disabled:opacity-70 disabled:cursor-wait" title="Clicca per forzare il salvataggio su Cloud (Neon DB)">{syncStatus === 'SYNCING' && <><Loader2 size={16} className="animate-spin text-blue-500 mr-2" /><span className="text-xs text-blue-600 font-medium">Salvataggio...</span></>}{syncStatus === 'SAVED' && <><CheckCircle size={16} className="text-emerald-500 mr-2" /><span className="text-xs text-emerald-600 font-medium">Salvato</span></>}{syncStatus === 'ERROR' && <><CloudOff size={16} className="text-red-500 mr-2" /><span className="text-xs text-red-600 font-medium">Offline</span></>}{syncStatus === 'IDLE' && <><Cloud size={16} className="text-slate-400 mr-2" /><span className="text-xs text-slate-500">Pronto</span></>}</button>
@@ -1261,7 +1262,7 @@ export const Planner = () => {
                       return (
                           <div className="mb-1 border-b border-slate-100 pb-2"><div className="flex justify-between items-start mb-1"><div><div className="font-bold text-slate-800 text-sm truncate w-40">{op?.lastName} {op?.firstName}</div><div className="text-[10px] text-slate-500 uppercase font-semibold">{format(parseISO(selectedCell.date), 'dd MMMM')}</div></div><div className={`px-2 py-1 rounded text-xs font-black shadow-sm border border-black/5 ${getContrastColor(shiftType?.color)}`} style={{backgroundColor: shiftType?.color || '#f1f5f9'}}>{currentCode || 'OFF'}</div></div><div className="flex flex-wrap gap-2 text-[10px] text-slate-600 mt-1.5 items-center">{isManual && <span className="bg-amber-100 text-amber-700 px-1 rounded font-medium border border-amber-200">Manuale</span>}<span>Matrice: <strong>{matrixShift || '-'}</strong></span><span>Ore: <strong>{hoursDisplay || '0h'}</strong></span></div>{violation && (<div className="mt-2 bg-red-50 border border-red-200 rounded p-2 flex items-start gap-2 animate-pulse"><AlertTriangle size={14} className="text-red-600 shrink-0 mt-0.5" /><span className="text-[10px] font-bold text-red-700 leading-tight">{violation}</span></div>)}{specialEvents.length > 0 && (<div className="mt-2 space-y-1"><div className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><Zap size={10} /> Voci Speciali</div>{specialEvents.map(ev => (<div key={ev.id} className="flex justify-between items-center bg-indigo-50 border border-indigo-100 rounded px-2 py-1 text-[10px] font-bold text-indigo-700"><span>{ev.type}</span><span>{ev.hours}h</span></div>))}</div>)}{hasNote && <div className="mt-2 text-[10px] italic text-slate-500 bg-slate-50 p-1.5 rounded border border-slate-100">"{entry.note}"</div>}</div>
                       );
-                  })()}<div className="grid grid-cols-6 gap-1 mb-1">{state.shiftTypes.map(s => (<button key={s.id} onClick={() => { setDraftShift(s.code); }} className={`h-7 w-full rounded text-[10px] font-bold border flex items-center justify-center transition-transform active:scale-95 ${draftShift === s.code ? 'ring-2 ring-blue-500 ring-offset-1 z-10' : 'opacity-90 hover:opacity-100'} ${getContrastColor(s.color)}`} style={{ backgroundColor: s.color }} title={s.name}>{s.code}</button>))}<button onClick={() => { setDraftShift('OFF'); }} className={`h-7 w-full rounded text-[10px] font-bold border bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 ${draftShift === 'OFF' ? 'ring-2 ring-blue-500 ring-offset-1 z-10' : ''}`}>OFF</button></div><input className="w-full text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder="Note rapide..." value={draftNote} onChange={(e) => setDraftNote(e.target.value)} /><div className="flex justify-between pt-1"><button className="px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 rounded transition-colors flex items-center" onClick={() => { setDraftShift(''); setDraftNote(''); saveChanges(); }}><Trash2 size={12} className="mr-1 inline" /> Cancella</button><Button variant="primary" className="px-3 py-1 text-xs h-7" onClick={saveChanges}>Salva</Button></div></div>)}{multiSelection && multiSelectPopupPosition && (<div className="fixed z-[60] bg-white rounded-lg shadow-xl border border-slate-200 p-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 min-w-[150px]" style={{ left: multiSelectPopupPosition.x, top: multiSelectPopupPosition.y }} onClick={(e) => e.stopPropagation()}><div className="text-xs font-bold text-slate-500 px-2 py-1 border-b mb-1">Azioni Multiple</div><button onClick={() => { setShowBulkModal(true); setMultiSelectPopupPosition(null); }} className="text-left px-2 py-1.5 text-sm hover:bg-slate-100 rounded text-slate-700 flex items-center gap-2"><Edit2 size={14} /> Assegna Turno...</button><button onClick={handleConfirmSelection} className="text-left px-2 py-1.5 text-sm hover:bg-slate-100 rounded text-slate-700 flex items-center gap-2"><CheckCheck size={14} /> Consolida Matrice</button><button onClick={handleCopySelection} className="text-left px-2 py-1.5 text-sm hover:bg-slate-100 rounded text-slate-700 flex items-center gap-2"><Copy size={14} /> Copia Selezione</button><button onClick={() => handleBulkAssign('')} className="text-left px-2 py-1.5 text-sm hover:bg-red-50 text-red-600 rounded flex items-center gap-2"><Trash2 size={14} /> Svuota Celle</button></div>)}</div>{coveragePopover && (<div className="fixed z-[300] bg-slate-900 text-white rounded-lg shadow-2xl p-3 w-[180px] animate-in fade-in zoom-in-95 pointer-events-none" style={{ left: coveragePopover.x, top: coveragePopover.y, transform: 'translateX(-50%)' }}><div className="text-[10px] font-bold text-slate-400 uppercase mb-2 border-b border-slate-700 pb-1">Presenze {format(parseISO(coveragePopover.date), 'dd/MM')}</div>{(() => {
+                  })()}<div className="grid grid-cols-6 gap-1 mb-1">{state.shiftTypes.map(s => (<button key={s.id} onClick={() => { setDraftShift(s.code); }} className={`h-7 w-full rounded text-[10px] font-bold border flex items-center justify-center transition-transform active:scale-95 ${draftShift === s.code ? 'ring-2 ring-blue-500 ring-offset-1 z-10' : 'opacity-90 hover:opacity-100'} ${getContrastColor(s.color)}`} style={{ backgroundColor: s.color }} title={s.name}>{s.code}</button>))}<button onClick={() => { setDraftShift('OFF'); }} className={`h-7 w-full rounded text-[10px] font-bold border bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 ${draftShift === 'OFF' ? 'ring-2 ring-blue-500 ring-offset-1 z-10' : ''}`}>OFF</button></div><input className="w-full text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-slate-50 focus:bg-white transition-colors" placeholder="Note rapide..." value={draftNote} onChange={(e) => setDraftNote(e.target.value)} /><div className="flex justify-between pt-1"><button className="px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700 rounded transition-colors flex items-center" onClick={() => { setDraftShift(''); setDraftNote(''); saveChanges(); }}><Trash2 size={12} className="mr-1 inline" /> Cancella</button><Button variant="primary" className="px-3 py-1 text-xs h-7" onClick={saveChanges}>Salva</Button></div></div>)}{multiSelection && multiSelectPopupPosition && (<div className="fixed z-[60] bg-white rounded-lg shadow-xl border border-slate-200 p-2 flex flex-col gap-1 animate-in fade-in zoom-in-95 min-w-[150px]" style={{ left: multiSelectPopupPosition.x, top: multiSelectPopupPosition.y }} onClick={(e) => e.stopPropagation()}> <div className="text-xs font-bold text-slate-500 px-2 py-1 border-b mb-1">Azioni Multiple</div><button onClick={() => { setShowBulkModal(true); setMultiSelectPopupPosition(null); }} className="text-left px-2 py-1.5 text-sm hover:bg-slate-100 rounded text-slate-700 flex items-center gap-2"><Edit2 size={14} /> Assegna Turno...</button><button onClick={handleConfirmSelection} className="text-left px-2 py-1.5 text-sm hover:bg-slate-100 rounded text-slate-700 flex items-center gap-2"><CheckCheck size={14} /> Consolida Matrice</button><button onClick={handleCopySelection} className="text-left px-2 py-1.5 text-sm hover:bg-slate-100 rounded text-slate-700 flex items-center gap-2"><Copy size={14} /> Copia Selezione</button><button onClick={() => handleBulkAssign('')} className="text-left px-2 py-1.5 text-sm hover:bg-red-50 text-red-600 rounded flex items-center gap-2"><Trash2 size={14} /> Svuota Celle</button></div>)}</div>{coveragePopover && (<div className="fixed z-[300] bg-slate-900 text-white rounded-lg shadow-2xl p-3 w-[180px] animate-in fade-in zoom-in-95 pointer-events-none" style={{ left: coveragePopover.x, top: coveragePopover.y, transform: 'translateX(-50%)' }}><div className="text-[10px] font-bold text-slate-400 uppercase mb-2 border-b border-slate-700 pb-1">Presenze {format(parseISO(coveragePopover.date), 'dd/MM')}</div>{(() => {
                   const dateKey = coveragePopover.date;
                   const m = getGroupedCoverage(dateKey, 'M8');
                   const p = getGroupedCoverage(dateKey, 'P');
