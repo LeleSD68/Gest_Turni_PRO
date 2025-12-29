@@ -1,23 +1,25 @@
+
 import React, { useState, useRef } from 'react';
 import { useApp } from '../store';
 import { Card, Input, Button, Badge, Modal, Select } from '../components/UI';
-import { Trash2, Plus, Edit, X, Copy, RotateCcw, Calculator, AlertTriangle, ShieldAlert, GripVertical, Bot, Network, FileSpreadsheet } from 'lucide-react';
-import { AppState, Operator, ShiftType, Matrix } from '../types';
+import { Trash2, Plus, Edit, X, Copy, RotateCcw, Calculator, AlertTriangle, ShieldAlert, GripVertical, Bot, Network, FileSpreadsheet, Briefcase } from 'lucide-react';
+import { AppState, Operator, ShiftType, Matrix, Assignment } from '../types';
 
 export const Settings = () => {
   const { state, dispatch } = useApp();
-  const [activeTab, setActiveTab] = useState<'RULES' | 'OPS' | 'SHIFTS' | 'MATRICES' | 'AI'>('RULES');
+  const [activeTab, setActiveTab] = useState<'RULES' | 'OPS' | 'SHIFTS' | 'MATRICES' | 'ASSIGNMENTS' | 'AI'>('RULES');
 
   // States for CRUD
   const [editingShift, setEditingShift] = useState<Partial<ShiftType> | null>(null);
   const [editingMatrix, setEditingMatrix] = useState<Partial<Matrix> | null>(null);
   const [editingOperator, setEditingOperator] = useState<Partial<Operator> | null>(null);
+  const [editingAssignment, setEditingAssignment] = useState<Partial<Assignment> | null>(null);
   
   // Drag & Drop State for Operators
   const [draggingOpId, setDraggingOpId] = useState<string | null>(null);
   
   // Delete Confirmation State
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'OPERATOR' | 'SHIFT' | 'MATRIX', id: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'OPERATOR' | 'SHIFT' | 'MATRIX' | 'ASSIGNMENT', id: string } | null>(null);
 
   // AI Connection Test State
   const [aiTestResult, setAiTestResult] = useState<{status: 'idle' | 'success' | 'error', message: string}>({ status: 'idle', message: '' });
@@ -141,6 +143,16 @@ export const Settings = () => {
       dispatch({ type: 'ADD_MATRIX', payload: newMatrix });
   };
 
+  const saveAssignment = () => {
+      if (!editingAssignment || !editingAssignment.code || !editingAssignment.name) return;
+      if (editingAssignment.id) {
+          dispatch({ type: 'UPDATE_ASSIGNMENT_DEF', payload: editingAssignment as Assignment });
+      } else {
+          dispatch({ type: 'ADD_ASSIGNMENT_DEF', payload: { ...editingAssignment, id: crypto.randomUUID() } as Assignment });
+      }
+      setEditingAssignment(null);
+  };
+
   const saveOperator = () => {
       if (!editingOperator || !editingOperator.firstName || !editingOperator.lastName) return;
 
@@ -210,6 +222,9 @@ export const Settings = () => {
           case 'MATRIX':
               dispatch({ type: 'DELETE_MATRIX', payload: deleteTarget.id });
               break;
+          case 'ASSIGNMENT':
+              dispatch({ type: 'DELETE_ASSIGNMENT_DEF', payload: deleteTarget.id });
+              break;
       }
       setDeleteTarget(null);
   };
@@ -256,7 +271,6 @@ export const Settings = () => {
       // Insert source at target
       // If moving down, target index is fine. If moving up, we insert before.
       // But drag over logic usually implies replacing or inserting before/after.
-      // Let's assume insert BEFORE target if target is below source in DOM? 
       // Simplified: Just splice at index.
       
       listWithoutSource.splice(newTargetIndex, 0, sourceOp);
@@ -284,6 +298,7 @@ export const Settings = () => {
                   { id: 'OPS', label: 'Operatori' },
                   { id: 'SHIFTS', label: 'Turni' },
                   { id: 'MATRICES', label: 'Matrici' },
+                  { id: 'ASSIGNMENTS', label: 'Incarichi' },
                   { id: 'AI', label: 'Integrazioni' },
               ].map(tab => (
                   <button 
@@ -417,6 +432,45 @@ export const Settings = () => {
                      </div>
                 </Card>
             </div>
+        )}
+
+        {/* Assignments Management */}
+        {activeTab === 'ASSIGNMENTS' && (
+            <Card title="Gestione Incarichi (Postazioni)">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                    {state.assignments.map(assignment => (
+                        <div key={assignment.id} className="border rounded-lg p-3 flex justify-between items-center bg-white shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-md flex items-center justify-center font-bold shadow-sm`} style={{ backgroundColor: assignment.color }}>
+                                    <span className={getContrastColor(assignment.color)}>{assignment.code}</span>
+                                </div>
+                                <div>
+                                    <div className="font-semibold text-sm">{assignment.name}</div>
+                                    <div className="text-xs text-slate-500 font-mono">Codice: {assignment.code}</div>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => setEditingAssignment(assignment)} className="text-blue-500 hover:bg-blue-50 p-1 rounded"><Edit size={14} /></button>
+                                <button onClick={() => setDeleteTarget({ type: 'ASSIGNMENT', id: assignment.id })} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={14} /></button>
+                            </div>
+                        </div>
+                    ))}
+                    <button 
+                        onClick={() => setEditingAssignment({ code: '', name: '', color: '#0ea5e9' })}
+                        className="border-2 border-dashed border-slate-300 rounded-lg p-3 flex flex-col items-center justify-center text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors"
+                    >
+                        <Plus size={24} />
+                        <span className="text-xs font-medium mt-1">Nuovo Incarico</span>
+                    </button>
+                </div>
+                <div className="bg-blue-50 p-3 rounded text-xs text-blue-800 mt-4 flex gap-2">
+                    <Briefcase size={16} className="shrink-0" />
+                    <span>
+                        Gli incarichi vengono visualizzati nella scheda dedicata "Incarichi". I colori scelti saranno usati per evidenziare la casella del turno.
+                        Usa codici brevi (es. "3°U", "AMB") per una migliore leggibilità.
+                    </span>
+                </div>
+            </Card>
         )}
 
         {/* AI & Integration Config Tab */}
@@ -865,6 +919,24 @@ export const Settings = () => {
                   <div className="flex justify-end gap-2 pt-4">
                       <Button variant="ghost" onClick={() => setEditingMatrix(null)}>Annulla</Button>
                       <Button variant="primary" onClick={saveMatrix}>Salva</Button>
+                  </div>
+              </div>
+          )}
+      </Modal>
+
+      {/* Modal Edit Assignment */}
+      <Modal isOpen={!!editingAssignment} onClose={() => setEditingAssignment(null)} title={editingAssignment?.id ? "Modifica Incarico" : "Nuovo Incarico"}>
+          {editingAssignment && (
+              <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                      <Input label="Codice (Breve)" value={editingAssignment.code} onChange={e => setEditingAssignment({...editingAssignment, code: e.target.value})} maxLength={6} placeholder="Es. 3°U" />
+                      <Input label="Colore" type="color" value={editingAssignment.color} onChange={e => setEditingAssignment({...editingAssignment, color: e.target.value})} className="h-10 p-1" />
+                  </div>
+                  <Input label="Nome Completo" value={editingAssignment.name} onChange={e => setEditingAssignment({...editingAssignment, name: e.target.value})} placeholder="Es. 3° Unità" />
+                  
+                  <div className="flex justify-end gap-2 pt-4">
+                      <Button variant="ghost" onClick={() => setEditingAssignment(null)}>Annulla</Button>
+                      <Button variant="primary" onClick={saveAssignment}>Salva</Button>
                   </div>
               </div>
           )}

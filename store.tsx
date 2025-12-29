@@ -60,6 +60,9 @@ const initialState: AppState = {
     { id: 'rubino', code: 'Rubino', name: '5° Unità Saletta', color: '#ef4444' },
     { id: 'turchese', code: 'Turchese', name: '3° Unità Saletta', color: '#06b6d4' },
     { id: 'ambra', code: 'Ambra', name: 'Piano terra 16-17', color: '#f59e0b' },
+    { id: '3unita', code: '3°U', name: '3° Unità', color: '#8b5cf6' },
+    { id: '5unita', code: '5°U', name: '5° Unità', color: '#84cc16' },
+    { id: '5unita_turchese', code: '5°UT', name: '5° Unità Turchese', color: '#008b8b' },
   ],
   matrices: [
     { id: 'm1', name: 'Matrice Standard', color: '#e0f2fe', sequence: ['M8', 'M7', 'P', 'R', 'M8', 'M7', 'P', 'R', 'M8', 'P', 'N', 'SN', 'R', 'M8', 'M7', 'P', 'R', 'M8', 'M7', 'P', 'R', 'M7', 'P', 'N', 'SN', 'R'] },
@@ -102,6 +105,9 @@ type Action =
   | { type: 'ADD_MATRIX'; payload: Matrix }
   | { type: 'UPDATE_MATRIX'; payload: Matrix }
   | { type: 'DELETE_MATRIX'; payload: string }
+  | { type: 'ADD_ASSIGNMENT_DEF'; payload: Assignment }
+  | { type: 'UPDATE_ASSIGNMENT_DEF'; payload: Assignment }
+  | { type: 'DELETE_ASSIGNMENT_DEF'; payload: string }
   | { type: 'UPDATE_DAY_NOTE'; payload: { date: string; note: string | DayNote } }
   | { type: 'REORDER_OPERATORS'; payload: Operator[] }
   | { type: 'LOGIN_SUCCESS' }
@@ -131,6 +137,9 @@ const appReducer = (state: AppState, action: Action): AppState => {
     case 'ADD_MATRIX': return { ...state, matrices: [...state.matrices, action.payload] };
     case 'UPDATE_MATRIX': return { ...state, matrices: state.matrices.map(m => m.id === action.payload.id ? action.payload : m) };
     case 'DELETE_MATRIX': return { ...state, matrices: state.matrices.filter(m => m.id !== action.payload) };
+    case 'ADD_ASSIGNMENT_DEF': return { ...state, assignments: [...state.assignments, action.payload] };
+    case 'UPDATE_ASSIGNMENT_DEF': return { ...state, assignments: state.assignments.map(a => a.id === action.payload.id ? action.payload : a) };
+    case 'DELETE_ASSIGNMENT_DEF': return { ...state, assignments: state.assignments.filter(a => a.id !== action.payload) };
     case 'UPDATE_DAY_NOTE': return { ...state, dayNotes: { ...state.dayNotes, [action.payload.date]: action.payload.note } };
     case 'REORDER_OPERATORS': return { ...state, operators: action.payload };
     default: return state;
