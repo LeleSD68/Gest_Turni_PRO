@@ -144,11 +144,18 @@ export const Settings = () => {
   };
 
   const saveAssignment = () => {
-      if (!editingAssignment || !editingAssignment.code || !editingAssignment.name) return;
+      // Modifica: Permetti il salvataggio anche se name è vuoto, basta il codice
+      if (!editingAssignment || !editingAssignment.code) return;
+      
+      const payload = {
+          ...editingAssignment,
+          name: editingAssignment.name || '' // Assicura che sia una stringa vuota se undefined
+      };
+
       if (editingAssignment.id) {
-          dispatch({ type: 'UPDATE_ASSIGNMENT_DEF', payload: editingAssignment as Assignment });
+          dispatch({ type: 'UPDATE_ASSIGNMENT_DEF', payload: payload as Assignment });
       } else {
-          dispatch({ type: 'ADD_ASSIGNMENT_DEF', payload: { ...editingAssignment, id: crypto.randomUUID() } as Assignment });
+          dispatch({ type: 'ADD_ASSIGNMENT_DEF', payload: { ...payload, id: crypto.randomUUID() } as Assignment });
       }
       setEditingAssignment(null);
   };
@@ -929,7 +936,7 @@ export const Settings = () => {
           {editingAssignment && (
               <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                      <Input label="Codice (Breve)" value={editingAssignment.code} onChange={e => setEditingAssignment({...editingAssignment, code: e.target.value})} maxLength={6} placeholder="Es. 3°U" />
+                      <Input label="Codice (Breve)" value={editingAssignment.code} onChange={e => setEditingAssignment({...editingAssignment, code: e.target.value})} maxLength={15} placeholder="Es. 3°U" />
                       <Input label="Colore" type="color" value={editingAssignment.color} onChange={e => setEditingAssignment({...editingAssignment, color: e.target.value})} className="h-10 p-1" />
                   </div>
                   <Input label="Nome Completo" value={editingAssignment.name} onChange={e => setEditingAssignment({...editingAssignment, name: e.target.value})} placeholder="Es. 3° Unità" />

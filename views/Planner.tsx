@@ -987,6 +987,8 @@ export const Planner = () => {
     const nextEntry = getEntry(state, op.id, nextDateKey);
     const isConnectedRight = !isMatrixView && entry?.isManual && nextEntry?.isManual && entry.shiftCode === nextEntry.shiftCode && entry.shiftCode !== 'OFF' && entry.shiftCode !== '';
 
+    const isDimmedByFilter = filterStatus === 'EXTRA' && !hasSpecialEvents;
+
     let dropFeedbackClass = '';
     if (isDragOver && !isDragging) {
         const targetEntry = getEntry(state, op.id, dateKey);
@@ -999,19 +1001,24 @@ export const Planner = () => {
     return (
       <div 
         key={dateKey} draggable={!isMatrixView && isEmployed} onDragStart={(e) => handleDragStart(e, op.id, dateKey, isEmployed)} onDragOver={handleDragOver} onDragEnter={() => handleCellDragEnter(op.id, dateKey, isEmployed)} onDrop={(e) => handleDrop(e, op.id, dateKey, isEmployed)} onDragEnd={handleDragEnd} onClick={(e) => { e.stopPropagation(); handleCellClick(e, op.id, dateKey, isEmployed); }} onContextMenu={(e) => handleRightClick(e, op.id, dateKey, isEmployed)} onDoubleClick={(e) => { e.stopPropagation(); handleCellDoubleClick(); }} onMouseEnter={() => { setHoveredDate(dateKey); setHoveredOpId(op.id); }}
-        style={{ backgroundColor: (isDragOver ? undefined : (violation ? '#fee2e2' : (shiftType ? shiftType.color : undefined))), opacity: isGhost ? 0.5 : 1, borderColor: isConnectedRight && shiftType ? shiftType.color : undefined, filter: !isCurrentMonth && viewSpan === 'MONTH' ? 'grayscale(100%) opacity(0.6)' : undefined }}
+        style={{ 
+            backgroundColor: (isDragOver ? undefined : (violation ? '#fee2e2' : (shiftType && !isDimmedByFilter ? shiftType.color : undefined))), 
+            opacity: isGhost ? 0.5 : 1, 
+            borderColor: isConnectedRight && shiftType && !isDimmedByFilter ? shiftType.color : undefined, 
+            filter: (!isCurrentMonth && viewSpan === 'MONTH') || isDimmedByFilter ? 'grayscale(100%) opacity(0.6)' : undefined 
+        }}
         className={`flex-1 min-w-[44px] md:min-w-0 border-r border-slate-300 border-b border-slate-300 text-xs md:text-sm flex items-center justify-center relative transition-all h-10 md:h-8 
           ${!isCurrentMonth && viewSpan === 'MONTH' ? 'bg-slate-100/50 text-slate-400' : isToday(day) ? 'bg-blue-50' : (isRedDay ? 'bg-red-50/40' : (isSat ? 'bg-slate-50/50' : ''))} 
           ${isPast && highlightPast ? 'opacity-30 grayscale bg-slate-100' : ''} 
           ${isHoveredCell ? 'ring-2 ring-inset ring-blue-500 z-30 bg-blue-100/80 shadow-inner' : ''} 
           ${(isRowHovered || isColHovered) && !isHoveredCell && !isSelected && !shiftType && !isRedDay ? 'bg-blue-100/40' : ''} 
-          ${(isRowHovered || isColHovered) && shiftType && !isHoveredCell ? 'brightness-90 ring-1 ring-inset ring-blue-200/50' : ''} 
+          ${(isRowHovered || isColHovered) && shiftType && !isHoveredCell && !isDimmedByFilter ? 'brightness-90 ring-1 ring-inset ring-blue-200/50' : ''} 
           ${isSelected ? 'ring-4 ring-violet-600 ring-offset-2 ring-offset-white z-50 shadow-2xl scale-105 opacity-100 grayscale-0' : ''} 
           ${isMultiSelected ? 'ring-inset ring-2 ring-blue-600 bg-blue-300/60 z-20' : ''} 
           ${isPendingTarget ? 'ring-2 ring-dashed ring-blue-500 z-20' : ''} 
           ${isDragging ? 'opacity-40 scale-90 ring-2 ring-slate-400' : ''} 
           ${dropFeedbackClass} 
-          ${violation ? 'text-red-600 font-bold border border-red-500' : (shiftType ? getContrastColor(shiftType.color) : 'text-slate-700')} 
+          ${violation ? 'text-red-600 font-bold border border-red-500' : (shiftType && !isDimmedByFilter ? getContrastColor(shiftType.color) : 'text-slate-700')} 
           ${isMatrixOverride ? 'ring-2 ring-dashed ring-red-500 z-10' : ''} 
           ${isEmployed ? 'cursor-pointer hover:opacity-90 active:cursor-grabbing' : 'cursor-not-allowed opacity-50 bg-slate-200'}`}
       >
