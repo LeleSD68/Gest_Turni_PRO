@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useApp } from '../store';
 import { getMonthDays, formatDateKey, isOperatorEmployed, getEntry, calculateMatrixShift } from '../utils';
@@ -188,6 +189,30 @@ export const AssignmentsPrintLayout = () => {
                          <span className="font-bold text-white">{a.code}</span>
                          <span className="text-blue-200 mx-1">-</span>
                          <span className="text-blue-100">{a.name}</span>
+                     </div>
+                </div>
+            ))}
+         </div>
+      </div>
+
+      {/* Legenda Turni */}
+      <div className="mt-4 pt-4 border-t border-blue-400/50">
+         <div className="text-center font-bold uppercase text-xs mb-3 tracking-widest opacity-80">Legenda Turni</div>
+         <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+            {state.shiftTypes.filter(s => s.hours > 0).map(s => (
+                <div key={s.id} className="flex items-center gap-2">
+                     <div 
+                        className="w-3.5 h-3.5 rounded-sm border border-white/50 shadow-sm" 
+                        style={{ 
+                            backgroundColor: s.color,
+                            WebkitPrintColorAdjust: 'exact', 
+                            printColorAdjust: 'exact'
+                        }}
+                     ></div>
+                     <div className="text-[10px]">
+                         <span className="font-bold text-white">{s.code}</span>
+                         <span className="text-blue-200 mx-1">-</span>
+                         <span className="text-blue-100">{s.name}</span>
                      </div>
                 </div>
             ))}
