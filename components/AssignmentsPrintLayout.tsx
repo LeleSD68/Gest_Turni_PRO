@@ -270,7 +270,7 @@ export const AssignmentsPrintLayout = () => {
             }}
          >
             <div className="border-b-2 border-black mb-3 h-10"></div>
-            <div className="font-bold text-[10px] uppercase tracking-wide text-center text-slate-700">Firma Coordinatore</div>
+            <div className="font-bold text-[10px] uppercase tracking-wide text-center text-slate-700">Firma Respnsabile Sanitario</div>
          </div>
       </div>
 
