@@ -85,7 +85,8 @@ export const AssignmentsPrintLayout = () => {
         <table className="w-full border-collapse border border-slate-400 h-full table-fixed">
           <thead>
             <tr className="bg-slate-100 h-10">
-              <th className="border border-slate-400 p-2 w-48 text-left font-bold text-slate-800 uppercase text-[11px]">Operatore</th>
+              <th className="border border-slate-400 p-2 w-48 text-left font-bold text-slate-800 uppercase text-xs">Operatore</th>
+              <th className="border border-slate-400 p-0.5 text-center w-12 font-bold text-slate-500 uppercase text-[9px] bg-slate-200">Ore</th>
               {days.map(d => {
                   const isHol = isItalianHoliday(d);
                   return (
@@ -109,64 +110,97 @@ export const AssignmentsPrintLayout = () => {
             </tr>
           </thead>
           <tbody>
-            {state.operators.filter(o => o.isActive).map(op => (
-              <tr key={op.id}>
-                <td className="border border-slate-400 p-1 pl-3 font-semibold truncate text-slate-900 text-[11px]">
-                  {op.lastName} {op.firstName.charAt(0)}.
-                </td>
-                {days.map(d => {
-                  const dateKey = formatDateKey(d);
-                  
-                  if (!isOperatorEmployed(op, dateKey)) {
-                     return (
+            {state.operators.filter(o => o.isActive).map(op => {
+              // Calculate Total Hours
+              const totalHours = days.reduce((acc, d) => {
+                const dk = formatDateKey(d);
+                if (!isOperatorEmployed(op, dk)) return acc;
+                const entry = getEntry(state, op.id, dk);
+                const mxCode = calculateMatrixShift(op, dk, state.matrices);
+                const code = entry?.shiftCode || mxCode || '';
+                const st = state.shiftTypes.find(s => s.code === code);
+                let h = 0;
+                if (entry?.customHours !== undefined) {
+                  h = entry.customHours;
+                } else if (st) {
+                  if (st.inheritsHours) {
+                    const mxShift = state.shiftTypes.find(s => s.code === mxCode);
+                    h = mxShift?.hours || 0;
+                  } else {
+                    h = st.hours;
+                  }
+                }
+                if (entry?.specialEvents) {
+                  entry.specialEvents.forEach(ev => {
+                    if (ev.mode === 'ADDITIVE' || !ev.mode) h += ev.hours;
+                    else if (ev.mode === 'SUBTRACTIVE') h -= ev.hours;
+                  });
+                }
+                return acc + h;
+              }, 0);
+
+              return (
+                <tr key={op.id}>
+                  <td className="border border-slate-400 p-1 pl-3 font-bold truncate text-slate-900 text-sm">
+                    {op.lastName} {op.firstName.charAt(0)}.
+                  </td>
+                  <td className="border border-slate-400 p-0.5 text-center font-bold text-slate-700 bg-slate-50 text-xs">
+                      {totalHours > 0 ? Math.round(totalHours) : '-'}
+                  </td>
+                  {days.map(d => {
+                    const dateKey = formatDateKey(d);
+                    
+                    if (!isOperatorEmployed(op, dateKey)) {
+                       return (
+                        <td 
+                            key={dateKey} 
+                            className="border border-slate-400 bg-slate-200"
+                            style={{ 
+                                backgroundImage: 'linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 50%, #cbd5e1 50%, #cbd5e1 75%, transparent 75%, transparent)',
+                                backgroundSize: '6px 6px',
+                                WebkitPrintColorAdjust: 'exact', 
+                                printColorAdjust: 'exact'
+                            }}
+                        ></td>
+                       );
+                    }
+
+                    // Retrieve Assignment Data (Color)
+                    const assignmentEntry = state.assignmentData[`${op.id}_${dateKey}`];
+                    const assignment = assignmentEntry ? state.assignments.find(a => a.id === assignmentEntry.assignmentId) : null;
+                    
+                    // Retrieve Shift Data (Text)
+                    const entry = getEntry(state, op.id, dateKey);
+                    const matrixShift = calculateMatrixShift(op, dateKey, state.matrices);
+                    const shiftCode = entry?.shiftCode || matrixShift || '';
+
+                    const isHol = isItalianHoliday(d);
+                    let bg = isHol ? '#eff6ff' : 'transparent';
+                    let textColor = 'inherit';
+
+                    if (assignment) {
+                        bg = assignment.color;
+                        textColor = getContrastColor(assignment.color);
+                    }
+
+                    return (
                       <td 
-                          key={dateKey} 
-                          className="border border-slate-400 bg-slate-200"
-                          style={{ 
-                              backgroundImage: 'linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 50%, #cbd5e1 50%, #cbd5e1 75%, transparent 75%, transparent)',
-                              backgroundSize: '6px 6px',
-                              WebkitPrintColorAdjust: 'exact', 
-                              printColorAdjust: 'exact'
-                          }}
-                      ></td>
-                     );
-                  }
-
-                  // Retrieve Assignment Data (Color)
-                  const assignmentEntry = state.assignmentData[`${op.id}_${dateKey}`];
-                  const assignment = assignmentEntry ? state.assignments.find(a => a.id === assignmentEntry.assignmentId) : null;
-                  
-                  // Retrieve Shift Data (Text)
-                  const entry = getEntry(state, op.id, dateKey);
-                  const matrixShift = calculateMatrixShift(op, dateKey, state.matrices);
-                  const shiftCode = entry?.shiftCode || matrixShift || '';
-
-                  const isHol = isItalianHoliday(d);
-                  let bg = isHol ? '#eff6ff' : 'transparent';
-                  let textColor = 'inherit';
-
-                  if (assignment) {
-                      bg = assignment.color;
-                      textColor = getContrastColor(assignment.color);
-                  }
-
-                  return (
-                    <td 
-                      key={dateKey} 
-                      className="border border-slate-400 p-0 text-center font-bold align-middle text-[10px]"
-                      style={{
-                          backgroundColor: bg,
-                          color: textColor,
-                          WebkitPrintColorAdjust: 'exact', 
-                          printColorAdjust: 'exact'
-                      }}
-                    >
-                      <span className="block w-full">{shiftCode}</span>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+                        key={dateKey} 
+                        className="border border-slate-400 p-0 text-center font-bold align-middle text-xs"
+                        style={{
+                            backgroundColor: bg,
+                            color: textColor,
+                            WebkitPrintColorAdjust: 'exact', 
+                            printColorAdjust: 'exact'
+                        }}
+                      >
+                        <span className="block w-full">{shiftCode}</span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -185,7 +219,7 @@ export const AssignmentsPrintLayout = () => {
                             printColorAdjust: 'exact'
                         }}
                      ></div>
-                     <div className="text-xs">
+                     <div className="text-sm">
                          <span className="font-bold text-white">{a.code}</span>
                          <span className="text-blue-200 mx-1">-</span>
                          <span className="text-blue-100">{a.name}</span>
@@ -209,7 +243,7 @@ export const AssignmentsPrintLayout = () => {
                             printColorAdjust: 'exact'
                         }}
                      ></div>
-                     <div className="text-[10px]">
+                     <div className="text-xs">
                          <span className="font-bold text-white">{s.code}</span>
                          <span className="text-blue-200 mx-1">-</span>
                          <span className="text-blue-100">{s.name}</span>
