@@ -9,6 +9,7 @@ import { PlannerEntry, ViewMode, ShiftType, SpecialEvent, CoverageConfig, DayNot
 import { OperatorDetailModal } from '../components/OperatorDetailModal';
 import { PrintLayout } from '../components/PrintLayout';
 import { TimesheetPrintLayout } from '../components/TimesheetPrintLayout';
+import { SingleOperatorCalendarLayout } from '../components/SingleOperatorCalendarLayout';
 
 type DisplayMode = 'PLANNER_STANDARD' | 'PLANNER_MINIMAL' | 'PLANNER_DETAILED' | 'MATRIX_ONLY' | 'MATRIX_DIFF';
 
@@ -67,7 +68,7 @@ export const Planner = () => {
   
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [printTargetId, setPrintTargetId] = useState<string | null>(null);
-  const [printLayoutMode, setPrintLayoutMode] = useState<'VISUAL' | 'TIMESHEET'>('VISUAL');
+  const [printLayoutMode, setPrintLayoutMode] = useState<'VISUAL' | 'TIMESHEET' | 'CALENDAR'>('VISUAL');
   const isMatrixView = displayMode === 'MATRIX_ONLY' || displayMode === 'MATRIX_DIFF';
   const [tooltipPos, setTooltipPos] = useState<{x: number, y: number, isBottom: boolean} | null>(null);
   const [pendingSwap, setPendingSwap] = useState<{ source: { opId: string; date: string }, target: { opId: string; date: string } } | null>(null);
@@ -108,6 +109,15 @@ export const Planner = () => {
   const [newSpecialHours, setNewSpecialHours] = useState<number | ''>('');
   const [newSpecialHoursMode, setNewSpecialHoursMode] = useState<'ADDITIVE' | 'SUBSTITUTIVE' | 'SUBTRACTIVE'>('ADDITIVE');
   const [isSpecialMode, setIsSpecialMode] = useState(false);
+
+  // When printTargetId changes, default to Calendar mode for single operator
+  useEffect(() => {
+      if (printTargetId) {
+          setPrintLayoutMode('CALENDAR');
+      } else {
+          setPrintLayoutMode('VISUAL');
+      }
+  }, [printTargetId]);
 
   const days = useMemo(() => {
       const date = parseISO(state.currentDate);
@@ -157,6 +167,7 @@ export const Planner = () => {
       });
   }, [state.operators, filterStatus, filterMatrix, searchTerm, days, state.plannerData]);
 
+  // ... (rest of planner logic unchanged)
   const groupedOperators = useMemo(() => {
       if (!groupByMatrix) return { 'all': filteredOperators };
       const groups: Record<string, typeof filteredOperators> = {};
@@ -320,6 +331,7 @@ export const Planner = () => {
       return `${ITALIAN_MONTHS[date.getMonth()]} ${date.getFullYear()}`;
   };
 
+  // ... (drag and drop and other handlers remain the same)
   const handleDragStart = (e: React.DragEvent, opId: string, date: string, isEmployed: boolean) => {
     if (!isEmployed) {
         e.preventDefault();
@@ -616,6 +628,8 @@ export const Planner = () => {
       setEditingDayNote({ date: dateKey, note: noteObj });
   };
 
+  // ... (rest of imports and CSV export logic unchanged)
+  
   const handleExportForGoogleSheets = async () => {
       if (!state.config.googleScriptUrl) {
           alert("Errore: URL Google Script non configurato in Impostazioni.");
@@ -711,6 +725,7 @@ export const Planner = () => {
       document.body.removeChild(link);
   };
   
+  // ... (handleCellClick, handleRightClick, etc. logic unchanged)
   const handleCellClick = (e: React.MouseEvent, opId: string, date: string, isEmployed: boolean) => {
     if (!isEmployed) return;
     const target = e.currentTarget as HTMLElement;
@@ -894,6 +909,7 @@ export const Planner = () => {
   };
 
   const renderCell = (op: any, day: Date) => {
+    // ... (renderCell implementation remains unchanged)
     const dateKey = formatDateKey(day);
     const isEmployed = isOperatorEmployed(op, dateKey);
     const entry = getEntry(state, op.id, dateKey);
@@ -1047,6 +1063,7 @@ export const Planner = () => {
   };
 
   const renderCoverageRow = () => {
+      // ... (renderCoverageRow implementation remains unchanged)
       if (isMatrixView) return null;
       return (
         <div className="flex flex-col shrink-0 z-20 sticky top-10">
@@ -1139,7 +1156,13 @@ export const Planner = () => {
       {/* Portale per la Stampa - Risolve il problema del rettangolo blu */}
       {showPrintPreview && printRoot && createPortal(
         <div className="bg-white p-8 w-full min-h-screen">
-          {printLayoutMode === 'VISUAL' ? <PrintLayout operatorId={printTargetId || undefined} /> : <TimesheetPrintLayout operatorId={printTargetId || undefined} />}
+          {printLayoutMode === 'VISUAL' ? (
+              <PrintLayout operatorId={printTargetId || undefined} />
+          ) : printLayoutMode === 'TIMESHEET' ? (
+              <TimesheetPrintLayout operatorId={printTargetId || undefined} />
+          ) : (
+              printTargetId ? <SingleOperatorCalendarLayout operatorId={printTargetId} /> : <PrintLayout />
+          )}
         </div>,
         printRoot
       )}
@@ -1148,13 +1171,30 @@ export const Planner = () => {
         <div className="fixed inset-0 z-[100] bg-white overflow-auto flex flex-col animate-in fade-in duration-200">
            <div className="shrink-0 p-4 border-b bg-slate-50 flex justify-between items-center no-print sticky top-0 shadow-sm z-50">
               <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Printer className="text-blue-600"/> Anteprima di Stampa {printTargetId ? '(Singolo Operatore)' : ''}</h2>
-              <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-md"><button onClick={() => setPrintLayoutMode('VISUAL')} className={`px-3 py-1.5 text-xs font-bold rounded shadow-sm transition-all ${printLayoutMode === 'VISUAL' ? 'bg-white text-blue-600' : 'text-slate-500 hover:bg-white/50'}`}><Layout size={14} className="inline mr-1" /> Planner Visivo</button><button onClick={() => setPrintLayoutMode('TIMESHEET')} className={`px-3 py-1.5 text-xs font-bold rounded shadow-sm transition-all ${printLayoutMode === 'TIMESHEET' ? 'bg-white text-blue-600' : 'text-slate-500 hover:bg-white/50'}`}><FileText size={14} className="inline mr-1" /> Cartellino Ore</button></div>
+              <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-md">
+                  <button onClick={() => setPrintLayoutMode('VISUAL')} className={`px-3 py-1.5 text-xs font-bold rounded shadow-sm transition-all ${printLayoutMode === 'VISUAL' ? 'bg-white text-blue-600' : 'text-slate-500 hover:bg-white/50'}`}><Layout size={14} className="inline mr-1" /> Planner Visivo</button>
+                  <button onClick={() => setPrintLayoutMode('TIMESHEET')} className={`px-3 py-1.5 text-xs font-bold rounded shadow-sm transition-all ${printLayoutMode === 'TIMESHEET' ? 'bg-white text-blue-600' : 'text-slate-500 hover:bg-white/50'}`}><FileText size={14} className="inline mr-1" /> Cartellino Ore</button>
+                  {printTargetId && (
+                      <button onClick={() => setPrintLayoutMode('CALENDAR')} className={`px-3 py-1.5 text-xs font-bold rounded shadow-sm transition-all ${printLayoutMode === 'CALENDAR' ? 'bg-white text-blue-600' : 'text-slate-500 hover:bg-white/50'}`}><Calendar size={14} className="inline mr-1" /> Calendario</button>
+                  )}
+              </div>
               <div className="flex items-center gap-3"><div className="text-xs text-slate-500 flex items-center mr-2 bg-yellow-50 px-2 py-1 rounded border border-yellow-200 hidden md:flex"><Info size={14} className="mr-1 text-yellow-600"/><span>Se la stampa non parte, usa <strong>Ctrl+P</strong></span></div><Button variant="secondary" onClick={() => window.print()} className="gap-2"><Printer size={16} /> Stampa</Button><Button variant="danger" onClick={() => { setShowPrintPreview(false); setPrintTargetId(null); }}>Chiudi</Button></div>
            </div>
-           <div className="flex-1 p-4 md:p-8 overflow-auto bg-slate-100 flex justify-center"><div className="bg-white shadow-xl p-8 max-w-[1400px] w-full min-h-screen print-area">{printLayoutMode === 'VISUAL' ? <PrintLayout operatorId={printTargetId || undefined} /> : <TimesheetPrintLayout operatorId={printTargetId || undefined} />}</div></div>
+           <div className="flex-1 p-4 md:p-8 overflow-auto bg-slate-100 flex justify-center">
+               <div className="bg-white shadow-xl p-8 max-w-[1400px] w-full min-h-screen print-area">
+                   {printLayoutMode === 'VISUAL' ? (
+                       <PrintLayout operatorId={printTargetId || undefined} />
+                   ) : printLayoutMode === 'TIMESHEET' ? (
+                       <TimesheetPrintLayout operatorId={printTargetId || undefined} />
+                   ) : (
+                       printTargetId ? <SingleOperatorCalendarLayout operatorId={printTargetId} /> : <PrintLayout />
+                   )}
+               </div>
+           </div>
         </div>
       )}
 
+      {/* Rest of the component code (Header, Toolbar, Grid etc.) ... */}
       <div className="md:hidden flex items-center justify-between p-2 border-b bg-slate-50 sticky top-0 z-50"><div className="flex items-center gap-2 font-bold text-slate-700"><CalendarDays size={18} className="text-blue-600" /><span>Planner</span></div><button onClick={() => setIsMobileToolbarOpen(!isMobileToolbarOpen)} className={`p-2 rounded-lg transition-colors ${isMobileToolbarOpen ? 'bg-blue-100 text-blue-700' : 'bg-white text-slate-600 border'}`}>{isMobileToolbarOpen ? <XCircle size={20} /> : <Settings2 size={20} />}</button></div>
       <div className={`p-2 md:p-4 border-b border-slate-200 bg-white shadow-sm z-40 gap-2 no-print ${isMobileToolbarOpen ? 'flex flex-wrap items-center justify-between' : 'hidden md:flex flex-wrap items-center justify-between'}`} onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-2 min-w-0"><button onClick={() => saveToCloud(true)} disabled={syncStatus === 'SYNCING'} className="hidden lg:flex items-center mr-2 px-2 py-1 bg-slate-50 rounded border border-slate-200 hover:bg-blue-50 cursor-pointer transition-colors disabled:opacity-70 disabled:cursor-wait" title="Clicca per forzare il salvataggio su Cloud (Neon DB)">{syncStatus === 'SYNCING' && <><Loader2 size={16} className="animate-spin text-blue-500 mr-2" /><span className="text-xs text-blue-600 font-medium">Salvataggio...</span></>}{syncStatus === 'SAVED' && <><CheckCircle size={16} className="text-emerald-500 mr-2" /><span className="text-xs text-emerald-600 font-medium">Salvato</span></>}{syncStatus === 'ERROR' && <><CloudOff size={16} className="text-red-500 mr-2" /><span className="text-xs text-red-600 font-medium">Offline</span></>}{syncStatus === 'IDLE' && <><Cloud size={16} className="text-slate-400 mr-2" /><span className="text-xs text-slate-500">Pronto</span></>}</button>
