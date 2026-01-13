@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useApp } from '../store';
 import { getMonthDays, formatDateKey, getEntry, calculateMatrixShift, isOperatorEmployed, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from '../utils';
@@ -19,6 +20,11 @@ const getContrastColor = (hexColor?: string) => {
   return yiq >= 128 ? '#000000' : '#ffffff';
 };
 
+const extractTime = (name: string) => {
+  const match = name.match(/\((.*?)\)/);
+  return match ? match[1] : '';
+};
+
 export const SingleOperatorCalendarLayout = ({ operatorId }: { operatorId: string }) => {
   const { state } = useApp();
   const operator = state.operators.find(o => o.id === operatorId);
@@ -35,38 +41,39 @@ export const SingleOperatorCalendarLayout = ({ operatorId }: { operatorId: strin
 
   return (
     <div 
-      className="p-8 font-sans w-full min-h-[297mm] flex flex-col bg-white"
+      className="p-6 font-sans flex flex-col bg-white"
       style={{ 
-        width: '297mm', // A4 Landscape o A3 Portrait fit
+        width: '297mm', // A4 Landscape Width
+        minHeight: '210mm', // A4 Landscape Height
         margin: '0 auto',
         printColorAdjust: 'exact',
         WebkitPrintColorAdjust: 'exact'
       }}
     >
       {/* Header */}
-      <div className="mb-6 border-b-4 border-slate-800 pb-4 flex justify-between items-end">
+      <div className="mb-4 border-b-4 border-slate-800 pb-2 flex justify-between items-end">
         <div>
-            <h1 className="text-4xl font-black uppercase tracking-wider text-slate-900 mb-2">
+            <h1 className="text-3xl font-black uppercase tracking-wider text-slate-900 mb-1">
                 {ITALIAN_MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
             </h1>
-            <h2 className="text-2xl font-light text-slate-600">
+            <h2 className="text-xl font-light text-slate-600">
                 Turni di servizio: <span className="font-bold text-slate-900">{operator.lastName} {operator.firstName}</span>
             </h2>
         </div>
         <div className="text-right">
-            <div className="text-xl font-bold text-slate-400 uppercase tracking-widest">ShiftMaster Pro</div>
+            <div className="text-lg font-bold text-slate-400 uppercase tracking-widest">ShiftMaster Pro</div>
         </div>
       </div>
 
       {/* Calendar Grid */}
-      <div className="flex-1 flex flex-col border-l border-t border-slate-300">
+      <div className="flex-1 flex flex-col border-l border-t border-slate-300 shadow-sm">
         
         {/* Header Giorni Settimana */}
-        <div className="grid grid-cols-7 h-10">
+        <div className="grid grid-cols-7 h-8">
             {WEEK_DAYS.map((day, index) => (
                 <div 
                     key={day} 
-                    className={`flex items-center justify-center border-r border-b border-slate-300 font-bold uppercase text-sm
+                    className={`flex items-center justify-center border-r border-b border-slate-300 font-bold uppercase text-xs tracking-wider
                         ${index === 6 ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'}
                     `}
                 >
@@ -104,20 +111,20 @@ export const SingleOperatorCalendarLayout = ({ operatorId }: { operatorId: strin
                         cellContent = (
                             <>
                                 <div className="flex-1 flex items-center justify-center">
-                                    <span className="text-3xl font-black tracking-tight" style={{ fontSize: code.length > 3 ? '1.5rem' : '2.5rem' }}>
+                                    <span className="text-3xl font-black tracking-tight leading-none" style={{ fontSize: code.length > 3 ? '1.5rem' : '2.5rem' }}>
                                         {code}
                                     </span>
                                 </div>
                                 {note && (
                                     <div 
-                                        className="w-full text-[10px] text-center px-1 truncate mb-1 opacity-90 font-medium"
+                                        className="w-full text-[9px] text-center px-1 truncate mb-1 opacity-90 font-medium"
                                         style={{ color: textColor }}
                                     >
                                         {note}
                                     </div>
                                 )}
                                 {entry?.customHours !== undefined && (
-                                    <div className="absolute top-1 right-1 text-[10px] font-mono opacity-70">
+                                    <div className="absolute top-1 right-1 text-[9px] font-mono opacity-70 leading-none">
                                         {entry.customHours}h
                                     </div>
                                 )}
@@ -129,7 +136,7 @@ export const SingleOperatorCalendarLayout = ({ operatorId }: { operatorId: strin
                 return (
                     <div 
                         key={dateKey} 
-                        className={`border-r border-b border-slate-300 relative flex flex-col min-h-[30mm]
+                        className={`border-r border-b border-slate-300 relative flex flex-col min-h-[25mm]
                             ${!isCurrentMonth ? 'opacity-40 grayscale bg-slate-100' : ''}
                         `}
                         style={{ 
@@ -140,7 +147,7 @@ export const SingleOperatorCalendarLayout = ({ operatorId }: { operatorId: strin
                         }}
                     >
                         {/* Numero Giorno (Alto Sx) */}
-                        <div className={`absolute top-1 left-2 text-sm font-bold ${isSun && isCurrentMonth && !cellContent ? 'text-red-500' : 'opacity-60'}`}>
+                        <div className={`absolute top-1 left-1.5 text-xs font-bold leading-none ${isSun && isCurrentMonth && !cellContent ? 'text-red-500' : 'opacity-60'}`}>
                             {format(day, 'd')}
                         </div>
 
@@ -152,20 +159,26 @@ export const SingleOperatorCalendarLayout = ({ operatorId }: { operatorId: strin
       </div>
 
       {/* Footer / Legenda Rapida */}
-      <div className="mt-6 flex justify-between items-end border-t border-slate-300 pt-4">
-         <div className="flex gap-4 flex-wrap max-w-[70%]">
-            {state.shiftTypes.filter(s => s.hours > 0).map(s => (
-                <div key={s.id} className="flex items-center gap-1.5">
-                    <div 
-                        className="w-3 h-3 border border-slate-300 rounded-sm shadow-sm" 
-                        style={{ backgroundColor: s.color, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
-                    ></div>
-                    <span className="text-[10px] uppercase text-slate-500 font-bold">{s.code}</span>
-                </div>
-            ))}
+      <div className="mt-4 flex justify-between items-end border-t border-slate-300 pt-3">
+         <div className="flex gap-x-6 gap-y-2 flex-wrap">
+            {state.shiftTypes.filter(s => s.hours > 0).map(s => {
+                const timeRange = extractTime(s.name);
+                return (
+                    <div key={s.id} className="flex items-center gap-2">
+                        <div 
+                            className="w-4 h-4 border border-slate-300 rounded-sm shadow-sm shrink-0" 
+                            style={{ backgroundColor: s.color, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+                        ></div>
+                        <div className="flex flex-col leading-none">
+                            <span className="text-xs uppercase text-slate-700 font-bold">{s.code}</span>
+                            {timeRange && <span className="text-[10px] text-slate-500 font-medium">{timeRange}</span>}
+                        </div>
+                    </div>
+                );
+            })}
          </div>
          
-         <div className="text-right text-[10px] text-slate-400">
+         <div className="text-right text-[10px] text-slate-400 whitespace-nowrap ml-4">
             Generato il {format(new Date(), 'dd/MM/yyyy HH:mm')}
          </div>
       </div>
