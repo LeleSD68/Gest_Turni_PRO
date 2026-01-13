@@ -7,12 +7,13 @@ import { Dashboard } from './views/Dashboard';
 import { Assignments } from './views/Assignments';
 import { Coverage } from './views/Coverage';
 import { DataManagement } from './views/DataManagement';
+import { Help } from './views/Help';
 import { Login } from './views/Login';
-import { Calendar, Settings as SettingsIcon, BarChart2, Menu, Briefcase, Database, ShieldCheck, LogOut, User } from 'lucide-react';
+import { Calendar, Settings as SettingsIcon, BarChart2, Menu, Briefcase, Database, ShieldCheck, LogOut, User, HelpCircle } from 'lucide-react';
 
 const MainLayout = () => {
   const { dispatch, state, syncFromCloud } = useApp();
-  const [view, setView] = useState<'PLANNER' | 'DASHBOARD' | 'SETTINGS' | 'ASSIGNMENTS' | 'DATA' | 'COVERAGE'>('PLANNER');
+  const [view, setView] = useState<'PLANNER' | 'DASHBOARD' | 'SETTINGS' | 'ASSIGNMENTS' | 'DATA' | 'COVERAGE' | 'HELP'>('PLANNER');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Keyboard Shortcuts for Undo/Redo
@@ -54,7 +55,9 @@ const MainLayout = () => {
            <NavItem icon={<Briefcase />} label="Incarichi" active={view === 'ASSIGNMENTS'} expanded={sidebarOpen} onClick={() => setView('ASSIGNMENTS')} />
            <NavItem icon={<BarChart2 />} label="Analisi & Log" active={view === 'DASHBOARD'} expanded={sidebarOpen} onClick={() => setView('DASHBOARD')} />
            <NavItem icon={<Database />} label="Gestione Dati" active={view === 'DATA'} expanded={sidebarOpen} onClick={() => setView('DATA')} />
+           <div className="my-4 border-t border-slate-800 mx-2"></div>
            <NavItem icon={<SettingsIcon />} label="Configurazione" active={view === 'SETTINGS'} expanded={sidebarOpen} onClick={() => setView('SETTINGS')} />
+           <NavItem icon={<HelpCircle />} label="Aiuto & Guida" active={view === 'HELP'} expanded={sidebarOpen} onClick={() => setView('HELP')} />
         </nav>
 
         <div className="p-4 border-t border-slate-800 space-y-3">
@@ -90,6 +93,7 @@ const MainLayout = () => {
             {view === 'DASHBOARD' && <Dashboard />}
             {view === 'DATA' && <DataManagement />}
             {view === 'SETTINGS' && <Settings />}
+            {view === 'HELP' && <Help />}
          </main>
       </div>
     </div>
