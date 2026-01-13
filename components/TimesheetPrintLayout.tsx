@@ -8,14 +8,17 @@ import { Clock, AlertCircle } from 'lucide-react';
 const ITALIAN_MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
 const ITALIAN_DAYS = ['D', 'L', 'M', 'M', 'G', 'V', 'S'];
 
-export const TimesheetPrintLayout = () => {
+export const TimesheetPrintLayout = ({ operatorId }: { operatorId?: string }) => {
   const { state } = useApp();
   const days = getMonthDays(state.currentDate);
   const currentMonthIdx = new Date(state.currentDate).getMonth();
 
   // Calcolo dei dati per il report
   const reportData = useMemo(() => {
-    const activeOperators = state.operators.filter(o => o.isActive).sort((a, b) => (a.order || 0) - (b.order || 0));
+    // Filter operators based on prop or show all active
+    const activeOperators = operatorId 
+        ? state.operators.filter(o => o.id === operatorId)
+        : state.operators.filter(o => o.isActive).sort((a, b) => (a.order || 0) - (b.order || 0));
     
     const rows = activeOperators.map(op => {
       let monthlyExpectedHours = 0;
@@ -122,7 +125,7 @@ export const TimesheetPrintLayout = () => {
     });
 
     return { rows, specialEventsReport };
-  }, [state, days]);
+  }, [state, days, operatorId]);
 
   return (
     <div 

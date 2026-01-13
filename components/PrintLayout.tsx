@@ -16,7 +16,7 @@ const isItalianHoliday = (date: Date) => {
   return holidays.includes(`${day}-${month}`);
 };
 
-export const PrintLayout = () => {
+export const PrintLayout = ({ operatorId }: { operatorId?: string }) => {
   const { state } = useApp();
   const days = getMonthDays(state.currentDate);
 
@@ -24,6 +24,10 @@ export const PrintLayout = () => {
     const match = name.match(/\((.*?)\)/);
     return match ? match[1] : '';
   };
+
+  const operatorsToPrint = operatorId 
+    ? state.operators.filter(o => o.id === operatorId)
+    : state.operators.filter(o => o.isActive);
 
   return (
     <div 
@@ -84,7 +88,7 @@ export const PrintLayout = () => {
             </tr>
           </thead>
           <tbody>
-            {state.operators.filter(o => o.isActive).map(op => {
+            {operatorsToPrint.map(op => {
               const totalHours = days.reduce((acc, d) => {
                 const dk = formatDateKey(d);
                 if (!isOperatorEmployed(op, dk)) return acc;

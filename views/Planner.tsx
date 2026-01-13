@@ -66,6 +66,7 @@ export const Planner = () => {
   const [filterMatrix, setFilterMatrix] = useState<string>(() => localStorage.getItem('planner_filterMatrix') || 'ALL');
   
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [printTargetId, setPrintTargetId] = useState<string | null>(null);
   const [printLayoutMode, setPrintLayoutMode] = useState<'VISUAL' | 'TIMESHEET'>('VISUAL');
   const isMatrixView = displayMode === 'MATRIX_ONLY' || displayMode === 'MATRIX_DIFF';
   const [tooltipPos, setTooltipPos] = useState<{x: number, y: number, isBottom: boolean} | null>(null);
@@ -1138,7 +1139,7 @@ export const Planner = () => {
       {/* Portale per la Stampa - Risolve il problema del rettangolo blu */}
       {showPrintPreview && printRoot && createPortal(
         <div className="bg-white p-8 w-full min-h-screen">
-          {printLayoutMode === 'VISUAL' ? <PrintLayout /> : <TimesheetPrintLayout />}
+          {printLayoutMode === 'VISUAL' ? <PrintLayout operatorId={printTargetId || undefined} /> : <TimesheetPrintLayout operatorId={printTargetId || undefined} />}
         </div>,
         printRoot
       )}
@@ -1146,11 +1147,11 @@ export const Planner = () => {
       {showPrintPreview && (
         <div className="fixed inset-0 z-[100] bg-white overflow-auto flex flex-col animate-in fade-in duration-200">
            <div className="shrink-0 p-4 border-b bg-slate-50 flex justify-between items-center no-print sticky top-0 shadow-sm z-50">
-              <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Printer className="text-blue-600"/> Anteprima di Stampa</h2>
+              <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Printer className="text-blue-600"/> Anteprima di Stampa {printTargetId ? '(Singolo Operatore)' : ''}</h2>
               <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-md"><button onClick={() => setPrintLayoutMode('VISUAL')} className={`px-3 py-1.5 text-xs font-bold rounded shadow-sm transition-all ${printLayoutMode === 'VISUAL' ? 'bg-white text-blue-600' : 'text-slate-500 hover:bg-white/50'}`}><Layout size={14} className="inline mr-1" /> Planner Visivo</button><button onClick={() => setPrintLayoutMode('TIMESHEET')} className={`px-3 py-1.5 text-xs font-bold rounded shadow-sm transition-all ${printLayoutMode === 'TIMESHEET' ? 'bg-white text-blue-600' : 'text-slate-500 hover:bg-white/50'}`}><FileText size={14} className="inline mr-1" /> Cartellino Ore</button></div>
-              <div className="flex items-center gap-3"><div className="text-xs text-slate-500 flex items-center mr-2 bg-yellow-50 px-2 py-1 rounded border border-yellow-200 hidden md:flex"><Info size={14} className="mr-1 text-yellow-600"/><span>Se la stampa non parte, usa <strong>Ctrl+P</strong></span></div><Button variant="secondary" onClick={() => window.print()} className="gap-2"><Printer size={16} /> Stampa</Button><Button variant="danger" onClick={() => setShowPrintPreview(false)}>Chiudi</Button></div>
+              <div className="flex items-center gap-3"><div className="text-xs text-slate-500 flex items-center mr-2 bg-yellow-50 px-2 py-1 rounded border border-yellow-200 hidden md:flex"><Info size={14} className="mr-1 text-yellow-600"/><span>Se la stampa non parte, usa <strong>Ctrl+P</strong></span></div><Button variant="secondary" onClick={() => window.print()} className="gap-2"><Printer size={16} /> Stampa</Button><Button variant="danger" onClick={() => { setShowPrintPreview(false); setPrintTargetId(null); }}>Chiudi</Button></div>
            </div>
-           <div className="flex-1 p-4 md:p-8 overflow-auto bg-slate-100 flex justify-center"><div className="bg-white shadow-xl p-8 max-w-[1400px] w-full min-h-screen print-area">{printLayoutMode === 'VISUAL' ? <PrintLayout /> : <TimesheetPrintLayout />}</div></div>
+           <div className="flex-1 p-4 md:p-8 overflow-auto bg-slate-100 flex justify-center"><div className="bg-white shadow-xl p-8 max-w-[1400px] w-full min-h-screen print-area">{printLayoutMode === 'VISUAL' ? <PrintLayout operatorId={printTargetId || undefined} /> : <TimesheetPrintLayout operatorId={printTargetId || undefined} />}</div></div>
         </div>
       )}
 
@@ -1226,13 +1227,22 @@ export const Planner = () => {
                                                   </span>
                                               </div>
                                               
-                                              <button 
-                                                  onClick={(e) => { e.stopPropagation(); setEditingOperatorNote({ opId: op.id, name: `${op.lastName} ${op.firstName}`, text: op.notes || '' }); }}
-                                                  className={`p-1.5 rounded-md transition-colors ${op.notes ? 'text-blue-600 bg-blue-50' : 'text-slate-300 opacity-0 group-hover/op-name:opacity-100 hover:bg-slate-100 hover:text-slate-500'}`}
-                                                  title="Note Personali"
-                                              >
-                                                  <MessageSquare size={14} className={op.notes ? "fill-blue-100" : ""} />
-                                              </button>
+                                              <div className="flex items-center gap-1 opacity-0 group-hover/op-name:opacity-100 transition-opacity">
+                                                  <button
+                                                      onClick={(e) => { e.stopPropagation(); setPrintTargetId(op.id); setShowPrintPreview(true); }}
+                                                      className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-slate-100"
+                                                      title="Stampa Turno Operatore"
+                                                  >
+                                                      <Printer size={14} />
+                                                  </button>
+                                                  <button 
+                                                      onClick={(e) => { e.stopPropagation(); setEditingOperatorNote({ opId: op.id, name: `${op.lastName} ${op.firstName}`, text: op.notes || '' }); }}
+                                                      className={`p-1.5 rounded-md transition-colors ${op.notes ? 'text-blue-600 bg-blue-50 !opacity-100' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}
+                                                      title="Note Personali"
+                                                  >
+                                                      <MessageSquare size={14} className={op.notes ? "fill-blue-100" : ""} />
+                                                  </button>
+                                              </div>
                                           </div>
                                           
                                           <div className={`w-[40px] md:w-[60px] shrink-0 border-r border-slate-300 flex flex-col items-center justify-center relative z-10 leading-none py-0.5 transition-colors ${isRowHovered ? 'bg-blue-100/30' : 'bg-slate-50'}`}>
