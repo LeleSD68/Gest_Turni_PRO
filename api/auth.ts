@@ -91,7 +91,7 @@ export default async function handler(request: Request) {
     }
 
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const { action, username, password, newPassword, newUsername } = await request.json();
+    const { action, username, password, newPassword, newUsername, masterKey } = await request.json();
 
     // Init Tables
     await pool.query(`
@@ -136,6 +136,51 @@ export default async function handler(request: Request) {
       
       await pool.end();
       return new Response(JSON.stringify({ error: 'Credenziali non valide' }), { status: 401 });
+    }
+
+    // RECOVER USERNAME (Public with Master Key)
+    if (action === 'recover_username') {
+        if (!process.env.APP_ACCESS_CODE) {
+             return new Response(JSON.stringify({ error: 'Configurazione server incompleta (APP_ACCESS_CODE mancante)' }), { status: 500 });
+        }
+
+        if (masterKey !== process.env.APP_ACCESS_CODE) {
+             await pool.end();
+             return new Response(JSON.stringify({ error: 'Codice Master (Cloud Key) non valido' }), { status: 403 });
+        }
+
+        const { rows } = await pool.query('SELECT username FROM users ORDER BY username ASC');
+        const usernames = rows.map(r => r.username);
+
+        await pool.end();
+        return new Response(JSON.stringify({ success: true, usernames }), { status: 200 });
+    }
+
+    // RESET PASSWORD (Public with Master Key)
+    if (action === 'reset_password') {
+        if (!process.env.APP_ACCESS_CODE) {
+             return new Response(JSON.stringify({ error: 'Configurazione server incompleta (APP_ACCESS_CODE mancante)' }), { status: 500 });
+        }
+
+        if (masterKey !== process.env.APP_ACCESS_CODE) {
+             await pool.end();
+             return new Response(JSON.stringify({ error: 'Codice Master (Cloud Key) non valido' }), { status: 403 });
+        }
+
+        const { rows: userExists } = await pool.query('SELECT username FROM users WHERE username = $1', [username]);
+        if (userExists.length === 0) {
+            await pool.end();
+            return new Response(JSON.stringify({ error: 'Utente non trovato' }), { status: 404 });
+        }
+
+        const newHash = await hashPassword(newPassword);
+        await pool.query('UPDATE users SET password_hash = $1 WHERE username = $2', [newHash, username]);
+        
+        // Invalidate all existing sessions for security
+        await pool.query('DELETE FROM sessions WHERE username = $1', [username]);
+
+        await pool.end();
+        return new Response(JSON.stringify({ success: true }), { status: 200 });
     }
 
     // CREATE USER (Protected)
