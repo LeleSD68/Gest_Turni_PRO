@@ -7,32 +7,11 @@ const generateDefaultContract = (id: string) => ([{ id: `c-${id}`, start: '2025-
 
 const initialState: AppState = {
   isAuthenticated: false,
+  currentUser: localStorage.getItem('sm_username') ? { username: localStorage.getItem('sm_username')!, role: 'admin' } : undefined,
   lastLogin: Date.now(),
   dataRevision: 0,
   currentDate: format(new Date(), 'yyyy-MM-01'),
-  operators: [
-    { id: '1', firstName: 'Lara', lastName: 'BUZZARELLO', isActive: true, notes: '', contracts: generateDefaultContract('1'), matrixHistory: [], order: 1 },
-    { id: '2', firstName: 'Alessandra', lastName: 'CERESER', isActive: true, notes: '', contracts: generateDefaultContract('2'), matrixHistory: [], order: 2 },
-    { id: '3', firstName: 'Lorena', lastName: 'BOSCOLO', isActive: true, notes: '', contracts: generateDefaultContract('3'), matrixHistory: [], order: 3 },
-    { id: '4', firstName: 'Giuliana', lastName: 'LUCCHESE', isActive: true, notes: '', contracts: generateDefaultContract('4'), matrixHistory: [], order: 4 },
-    { id: '5', firstName: 'Manuela', lastName: 'DALLA BELLA', isActive: true, notes: '', contracts: generateDefaultContract('5'), matrixHistory: [], order: 5 },
-    { id: '6', firstName: 'Carmen', lastName: 'BEJENARU', isActive: true, notes: '', contracts: generateDefaultContract('6'), matrixHistory: [], order: 6 },
-    { id: '7', firstName: 'Milena', lastName: 'CANAVESI', isActive: true, notes: '', contracts: generateDefaultContract('7'), matrixHistory: [], order: 7 },
-    { id: '8', firstName: 'Emanuela', lastName: 'BOZZA', isActive: true, notes: '', contracts: generateDefaultContract('8'), matrixHistory: [], order: 8 },
-    { id: '9', firstName: 'Pasquale', lastName: 'DE ANGELIS', isActive: true, notes: '', contracts: generateDefaultContract('9'), matrixHistory: [], order: 9 },
-    { id: '10', firstName: 'Lorena', lastName: 'BARBETTA', isActive: true, notes: '', contracts: generateDefaultContract('10'), matrixHistory: [], order: 10 },
-    { id: '11', firstName: 'Chiara', lastName: 'SARDO', isActive: true, notes: '', contracts: generateDefaultContract('11'), matrixHistory: [], order: 11 },
-    { id: '12', firstName: 'Fabio', lastName: 'ZUCCHERI', isActive: true, notes: '', contracts: generateDefaultContract('12'), matrixHistory: [], order: 12 },
-    { id: '13', firstName: 'Sonia', lastName: 'MARTINAZZI', isActive: true, notes: '', contracts: generateDefaultContract('13'), matrixHistory: [], order: 13 },
-    { id: '14', firstName: 'Valentina', lastName: 'DONA\'', isActive: true, notes: '', contracts: generateDefaultContract('14'), matrixHistory: [], order: 14 },
-    { id: '15', firstName: 'Paola', lastName: 'BORTOLOT', isActive: true, notes: '', contracts: generateDefaultContract('15'), matrixHistory: [], order: 15 },
-    { id: '16', firstName: 'Genny', lastName: 'MORETTO', isActive: true, notes: '', contracts: generateDefaultContract('16'), matrixHistory: [], order: 16 },
-    { id: '17', firstName: 'Patrick', lastName: 'FURLAN', isActive: true, notes: '', contracts: generateDefaultContract('17'), matrixHistory: [], order: 17 },
-    { id: '18', firstName: 'Raffaella', lastName: 'MOCELLIN', isActive: true, notes: '', contracts: generateDefaultContract('18'), matrixHistory: [], order: 18 },
-    { id: '19', firstName: 'Andrea', lastName: 'DE MARTIN', isActive: true, notes: '', contracts: generateDefaultContract('19'), matrixHistory: [], order: 19 },
-    { id: '20', firstName: '-', lastName: 'OULY', isActive: true, notes: '', contracts: generateDefaultContract('20'), matrixHistory: [], order: 20 },
-    { id: '21', firstName: 'Daniela', lastName: 'GRECO', isActive: true, notes: '', contracts: generateDefaultContract('21'), matrixHistory: [], order: 21 },
-  ],
+  operators: [], // Lista operatori vuota come richiesto
   shiftTypes: [
     { id: 'm6', code: 'M6', name: 'Mattino (08:00-14:00)', color: '#bcdfc3', hours: 6, isNight: false, isWeekend: false },
     { id: 'm7', code: 'M7', name: 'Mattina 7 ore (06:00-13:00)', color: '#d1ebbe', hours: 7, isNight: false, isWeekend: false },
@@ -110,15 +89,19 @@ type Action =
   | { type: 'DELETE_ASSIGNMENT_DEF'; payload: string }
   | { type: 'UPDATE_DAY_NOTE'; payload: { date: string; note: string | DayNote } }
   | { type: 'REORDER_OPERATORS'; payload: Operator[] }
-  | { type: 'LOGIN_SUCCESS' }
+  | { type: 'LOGIN_SUCCESS'; payload?: { username: string; role: string } }
   | { type: 'LOGOUT' }
   | { type: 'UNDO' }
   | { type: 'REDO' };
 
 const appReducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
-    case 'LOGIN_SUCCESS': return { ...state, isAuthenticated: true };
-    case 'LOGOUT': { localStorage.removeItem('sm_token'); return { ...state, isAuthenticated: false }; }
+    case 'LOGIN_SUCCESS': return { ...state, isAuthenticated: true, currentUser: action.payload || state.currentUser };
+    case 'LOGOUT': { 
+        localStorage.removeItem('sm_token'); 
+        localStorage.removeItem('sm_username');
+        return { ...state, isAuthenticated: false, currentUser: undefined }; 
+    }
     case 'SET_DATE': return { ...state, currentDate: action.payload };
     case 'UPDATE_CELL': { const key = `${action.payload.operatorId}_${action.payload.date}`; return { ...state, plannerData: { ...state.plannerData, [key]: action.payload } }; }
     case 'REMOVE_CELL': { const key = `${action.payload.operatorId}_${action.payload.date}`; const updated = { ...state.plannerData }; delete updated[key]; return { ...state, plannerData: updated }; }
@@ -127,7 +110,7 @@ const appReducer = (state: AppState, action: Action): AppState => {
     case 'REMOVE_ASSIGNMENT': { const key = `${action.payload.operatorId}_${action.payload.date}`; const updated = { ...state.assignmentData }; delete updated[key]; return { ...state, assignmentData: updated }; }
     case 'ADD_LOG': return { ...state, logs: [action.payload, ...state.logs] };
     case 'UPDATE_CONFIG': return { ...state, config: { ...state.config, ...action.payload } };
-    case 'RESTORE_BACKUP': return { ...initialState, ...action.payload, isAuthenticated: true };
+    case 'RESTORE_BACKUP': return { ...initialState, ...action.payload, isAuthenticated: true, currentUser: state.currentUser };
     case 'ADD_OPERATOR': return { ...state, operators: [...state.operators, action.payload] };
     case 'UPDATE_OPERATOR': return { ...state, operators: state.operators.map(op => op.id === action.payload.id ? action.payload : op) };
     case 'DELETE_OPERATOR': return { ...state, operators: state.operators.filter(op => op.id !== action.payload) };
@@ -181,9 +164,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const stored = localStorage.getItem(CONSTANTS.STORAGE_KEY);
       const token = localStorage.getItem('sm_token');
+      const user = localStorage.getItem('sm_username');
       if (stored) {
         const merged = { ...initialState, ...JSON.parse(stored) };
         merged.isAuthenticated = !!token;
+        if(user) merged.currentUser = { username: user, role: 'admin' };
         return { past: [], present: merged, future: [] };
       }
     } catch (e) {}
@@ -245,7 +230,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // Ripristiniamo solo se forzato o se la revisione cloud è maggiore (e non siamo in fase di scrittura)
           if (force || (data.dataRevision || 0) > (state.dataRevision || 0)) {
             dispatch({ type: 'RESTORE_BACKUP', payload: data });
-            dispatch({ type: 'LOGIN_SUCCESS' });
+            // Non chiamiamo LOGIN_SUCCESS qui per evitare sovrascrittura currentUser
           }
         }
       }

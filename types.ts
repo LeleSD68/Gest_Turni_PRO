@@ -145,6 +145,7 @@ export interface AIConfig {
 
 export interface AppState {
   isAuthenticated: boolean;
+  currentUser?: { username: string; role: string }; // Track currently logged in user
   lastLogin: number;
   dataRevision: number; // Incrementing counter for data versioning
   currentDate: string; // YYYY-MM-01

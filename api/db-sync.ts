@@ -26,19 +26,21 @@ export default async function handler(request: Request) {
       });
     }
 
+    // CHECK SICUREZZA CRITICO
+    if (!process.env.APP_ACCESS_CODE) {
+       // Impedisce l'avvio se la variabile d'ambiente non è settata in Vercel
+       return new Response(JSON.stringify({ error: 'CRITICO: Variabile APP_ACCESS_CODE mancante su Vercel.' }), { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
     const authHeader = request.headers.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
 
-    // Verifica Autorizzazione Semplificata (Master Key)
-    let isAuthenticated = false;
-    if (!process.env.APP_ACCESS_CODE) {
-        isAuthenticated = true; // Permesso se non configurato (setup iniziale)
-    } else if (token && token === process.env.APP_ACCESS_CODE) {
-        isAuthenticated = true;
-    }
-
-    if (!isAuthenticated) {
-      return new Response(JSON.stringify({ error: 'Codice Cloud non valido o mancante' }), { 
+    // Verifica token rigorosa
+    if (!token || token !== process.env.APP_ACCESS_CODE) {
+      return new Response(JSON.stringify({ error: 'Accesso Negato: Token Sync non valido.' }), { 
         status: 401, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });

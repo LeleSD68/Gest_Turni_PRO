@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useApp } from '../store';
 import { Button, Input, Card } from '../components/UI';
@@ -26,7 +27,9 @@ export const Login = () => {
                 const data = await response.json();
                 if (data.success) {
                     localStorage.setItem('sm_token', data.token);
-                    dispatch({ type: 'LOGIN_SUCCESS' });
+                    // Persist username to keep context for DataManagement
+                    localStorage.setItem('sm_username', data.user.username);
+                    dispatch({ type: 'LOGIN_SUCCESS', payload: data.user });
                     await syncFromCloud(true).catch(() => {});
                     return;
                 }
@@ -36,7 +39,8 @@ export const Login = () => {
             if ((response.status === 404 || response.status === 500) && username === 'admin' && password === 'admin') {
                 console.warn("Backend non rilevato. Accesso demo abilitato.");
                 localStorage.setItem('sm_token', 'local-demo-token');
-                dispatch({ type: 'LOGIN_SUCCESS' });
+                localStorage.setItem('sm_username', 'admin');
+                dispatch({ type: 'LOGIN_SUCCESS', payload: { username: 'admin', role: 'admin' } });
                 return;
             }
 
@@ -47,7 +51,8 @@ export const Login = () => {
             if (username === 'admin' && password === 'admin') {
                 console.warn("Connessione API fallita. Accesso in modalità locale.");
                 localStorage.setItem('sm_token', 'local-demo-token');
-                dispatch({ type: 'LOGIN_SUCCESS' });
+                localStorage.setItem('sm_username', 'admin');
+                dispatch({ type: 'LOGIN_SUCCESS', payload: { username: 'admin', role: 'admin' } });
             } else {
                 setError('Impossibile connettersi al server. Verifica la connessione.');
             }

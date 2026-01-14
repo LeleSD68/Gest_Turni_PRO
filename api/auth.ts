@@ -1,15 +1,77 @@
+
 import { Pool } from '@neondatabase/serverless';
 
 export const config = {
   runtime: 'edge',
 };
 
-async function hashPassword(password: string): Promise<string> {
-  const msgBuffer = new TextEncoder().encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+// --- Crypto Helpers per PBKDF2 ---
+
+function buf2hex(buffer: ArrayBuffer) {
+  return Array.from(new Uint8Array(buffer))
+    .map(x => x.toString(16).padStart(2, '0'))
+    .join('');
 }
+
+function hex2buf(hex: string) {
+    const match = hex.match(/.{1,2}/g);
+    if (!match) return new Uint8Array();
+    return new Uint8Array(match.map(byte => parseInt(byte, 16)));
+}
+
+async function hashPassword(password: string, salt: Uint8Array | null = null): Promise<string> {
+    const enc = new TextEncoder();
+    // Genera un nuovo salt casuale se non fornito (per nuovi utenti/password)
+    const currentSalt = salt || crypto.getRandomValues(new Uint8Array(16));
+
+    const keyMaterial = await crypto.subtle.importKey(
+        "raw",
+        enc.encode(password),
+        { name: "PBKDF2" },
+        false,
+        ["deriveBits", "deriveKey"]
+    );
+
+    const key = await crypto.subtle.deriveKey(
+        {
+            name: "PBKDF2",
+            salt: currentSalt,
+            iterations: 100000, // 100k iterazioni per rallentare il brute-force
+            hash: "SHA-256"
+        },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"] // Usage dummy per export
+    );
+
+    // Esporta la chiave derivata
+    const exportedKey = await crypto.subtle.exportKey("raw", key);
+    
+    // Formato archiviazione: salt_hex:hash_hex
+    return `${buf2hex(currentSalt)}:${buf2hex(exportedKey)}`;
+}
+
+async function verifyPassword(password: string, storedComposite: string): Promise<boolean> {
+    try {
+        const parts = storedComposite.split(':');
+        // Se la password nel DB non ha il formato salt:hash (es. vecchi hash SHA256), fallisce
+        if (parts.length !== 2) return false; 
+        
+        const [saltHex, originalHashHex] = parts;
+        const salt = hex2buf(saltHex);
+        
+        // Ricalcola hash usando lo STESSO salt
+        const newComposite = await hashPassword(password, salt);
+        const [, newHashHex] = newComposite.split(':');
+        
+        return originalHashHex === newHashHex;
+    } catch (e) {
+        return false;
+    }
+}
+
+// --- Handler ---
 
 export default async function handler(request: Request) {
   if (request.method === 'OPTIONS') {
@@ -29,7 +91,7 @@ export default async function handler(request: Request) {
     }
 
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const { action, username, password, newPassword } = await request.json();
+    const { action, username, password, newPassword, newUsername } = await request.json();
 
     // Init Tables
     await pool.query(`
@@ -50,24 +112,30 @@ export default async function handler(request: Request) {
     // Check for default admin
     const { rows: existingUsers } = await pool.query('SELECT count(*) FROM users');
     if (parseInt(existingUsers[0].count) === 0) {
+      // Usa il nuovo sistema di hash sicuro anche per l'admin di default
       const defaultHash = await hashPassword('admin');
       await pool.query('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)', ['admin', defaultHash, 'admin']);
     }
 
     // LOGIN
     if (action === 'login') {
-      const hashedPassword = await hashPassword(password);
-      const { rows } = await pool.query('SELECT * FROM users WHERE username = $1 AND password_hash = $2', [username, hashedPassword]);
+      // Recupera l'utente per ottenere il salt memorizzato
+      const { rows } = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
       
       if (rows.length > 0) {
-        const token = crypto.randomUUID();
-        await pool.query('INSERT INTO sessions (token, username) VALUES ($1, $2)', [token, username]);
-        await pool.end();
-        return new Response(JSON.stringify({ success: true, token, user: { username: rows[0].username, role: rows[0].role } }), { status: 200 });
-      } else {
-        await pool.end();
-        return new Response(JSON.stringify({ error: 'Credenziali non valide' }), { status: 401 });
-      }
+        const storedHash = rows[0].password_hash;
+        const isValid = await verifyPassword(password, storedHash);
+
+        if (isValid) {
+            const token = crypto.randomUUID();
+            await pool.query('INSERT INTO sessions (token, username) VALUES ($1, $2)', [token, username]);
+            await pool.end();
+            return new Response(JSON.stringify({ success: true, token, user: { username: rows[0].username, role: rows[0].role } }), { status: 200 });
+        }
+      } 
+      
+      await pool.end();
+      return new Response(JSON.stringify({ error: 'Credenziali non valide' }), { status: 401 });
     }
 
     // CREATE USER (Protected)
@@ -75,7 +143,6 @@ export default async function handler(request: Request) {
       const authHeader = request.headers.get('Authorization');
       const token = authHeader?.replace('Bearer ', '');
       
-      // Verify session and role
       const { rows: sessionRows } = await pool.query(`
         SELECT u.role FROM sessions s 
         JOIN users u ON s.username = u.username 
@@ -87,9 +154,9 @@ export default async function handler(request: Request) {
         return new Response(JSON.stringify({ error: 'Non autorizzato' }), { status: 403 });
       }
 
-      const hashedPassword = await hashPassword(password);
+      const safeHash = await hashPassword(password);
       try {
-        await pool.query('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)', [username, hashedPassword, 'user']);
+        await pool.query('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)', [username, safeHash, 'user']);
         await pool.end();
         return new Response(JSON.stringify({ success: true }), { status: 200 });
       } catch (e) {
@@ -103,7 +170,6 @@ export default async function handler(request: Request) {
       const authHeader = request.headers.get('Authorization');
       const token = authHeader?.replace('Bearer ', '');
       
-      // Get current user from session
       const { rows: sessionRows } = await pool.query('SELECT username FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
       
       if (sessionRows.length === 0) {
@@ -112,13 +178,11 @@ export default async function handler(request: Request) {
       }
 
       const currentUser = sessionRows[0].username;
-      // Target user (admin can change anyone, user can change own)
       const targetUser = username || currentUser;
 
-      // If changing someone else, verify admin
       if (targetUser !== currentUser) {
          const { rows: roleRows } = await pool.query('SELECT role FROM users WHERE username = $1', [currentUser]);
-         if (roleRows[0].role !== 'admin') {
+         if (roleRows.length === 0 || roleRows[0].role !== 'admin') {
              await pool.end();
              return new Response(JSON.stringify({ error: 'Non autorizzato' }), { status: 403 });
          }
@@ -128,6 +192,51 @@ export default async function handler(request: Request) {
       await pool.query('UPDATE users SET password_hash = $1 WHERE username = $2', [newHash, targetUser]);
       await pool.end();
       return new Response(JSON.stringify({ success: true }), { status: 200 });
+    }
+
+    // CHANGE USERNAME
+    if (action === 'change_username') {
+      const authHeader = request.headers.get('Authorization');
+      const token = authHeader?.replace('Bearer ', '');
+
+      if (!token) return new Response(JSON.stringify({ error: 'Token mancante' }), { status: 401 });
+
+      const { rows: sessionRows } = await pool.query('SELECT username FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
+      
+      if (sessionRows.length === 0) {
+        await pool.end();
+        return new Response(JSON.stringify({ error: 'Sessione scaduta' }), { status: 401 });
+      }
+
+      const currentUser = sessionRows[0].username;
+      const currentPassword = password; 
+      
+      // Verifica password attuale
+      const { rows: userCheck } = await pool.query('SELECT password_hash FROM users WHERE username = $1', [currentUser]);
+      
+      let isPasswordCorrect = false;
+      if (userCheck.length > 0) {
+          isPasswordCorrect = await verifyPassword(currentPassword, userCheck[0].password_hash);
+      }
+      
+      if (!isPasswordCorrect) {
+          await pool.end();
+          return new Response(JSON.stringify({ error: 'Password attuale non corretta' }), { status: 403 });
+      }
+
+      // Check duplicati
+      const { rows: duplicateCheck } = await pool.query('SELECT username FROM users WHERE username = $1', [newUsername]);
+      if (duplicateCheck.length > 0) {
+          await pool.end();
+          return new Response(JSON.stringify({ error: 'Nome utente già in uso' }), { status: 400 });
+      }
+
+      // Update DB
+      await pool.query('UPDATE users SET username = $1 WHERE username = $2', [newUsername, currentUser]);
+      await pool.query('UPDATE sessions SET username = $1 WHERE username = $2', [newUsername, currentUser]);
+
+      await pool.end();
+      return new Response(JSON.stringify({ success: true, newUsername }), { status: 200 });
     }
 
     await pool.end();

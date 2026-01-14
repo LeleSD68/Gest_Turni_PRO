@@ -2,7 +2,7 @@
 import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { useApp } from '../store';
 import { Button, Card, Modal, Badge, Input } from '../components/UI';
-import { Download, Upload, AlertTriangle, CheckCircle, Calendar, Users, FileJson, RefreshCw, ListFilter, ArrowRightLeft, ShieldCheck, FileCheck, Settings, X, Database, CloudUpload, CloudDownload, Lock, Key, AlertCircle } from 'lucide-react';
+import { Download, Upload, AlertTriangle, CheckCircle, Calendar, Users, FileJson, RefreshCw, ListFilter, ArrowRightLeft, ShieldCheck, FileCheck, Settings, X, Database, CloudUpload, CloudDownload, Lock, Key, AlertCircle, UserCog, User } from 'lucide-react';
 import { AppState, PlannerEntry, SpecialEvent, CONSTANTS, Operator } from '../types';
 import { format, isValid } from 'date-fns';
 import { calculateMatrixShift, getShiftByCode, parseISO } from '../utils';
@@ -26,6 +26,11 @@ export const DataManagement = () => {
     // Cloud Access Token state
     const [cloudToken, setCloudToken] = useState(() => localStorage.getItem('sm_token') || '');
 
+    // Credentials Management State
+    const [credsMode, setCredsMode] = useState<'PASSWORD' | 'USERNAME'>('PASSWORD');
+    const [newCreds, setNewCreds] = useState({ currentPassword: '', newValue: '' });
+    const [credsStatus, setCredsStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
     // --- Staging State for Import Analysis ---
     const [stagedData, setStagedData] = useState<AppState | null>(null);
     const [showImportModal, setShowImportModal] = useState(false);
@@ -44,6 +49,60 @@ export const DataManagement = () => {
         localStorage.setItem('sm_token', cloudToken);
         alert("Token salvato localmente. Tenta ora una sincronizzazione.");
         syncFromCloud(true);
+    };
+
+    const handleUpdateCredentials = async () => {
+        setCredsStatus(null);
+        if (!newCreds.currentPassword || !newCreds.newValue) {
+            setCredsStatus({ type: 'error', message: 'Tutti i campi sono obbligatori.' });
+            return;
+        }
+
+        const token = localStorage.getItem('sm_token');
+        if (!token || token === 'local-demo-token') {
+            setCredsStatus({ type: 'error', message: 'Funzionalità non disponibile in modalità demo locale.' });
+            return;
+        }
+
+        try {
+            const body: any = { 
+                action: credsMode === 'PASSWORD' ? 'change_password' : 'change_username',
+                password: newCreds.currentPassword 
+            };
+
+            if (credsMode === 'PASSWORD') {
+                body.newPassword = newCreds.newValue;
+            } else {
+                body.newUsername = newCreds.newValue;
+            }
+
+            const response = await fetch('/api/auth', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(body)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setCredsStatus({ type: 'success', message: `${credsMode === 'PASSWORD' ? 'Password' : 'Nome utente'} aggiornato con successo!` });
+                setNewCreds({ currentPassword: '', newValue: '' });
+                if (credsMode === 'USERNAME') {
+                    // Update local storage and state immediately
+                    localStorage.setItem('sm_username', data.newUsername);
+                    // Force logout to re-login with new creds logic if needed, but session is valid
+                    // Let's just alert the user
+                    setTimeout(() => alert("Nome utente modificato. Al prossimo login usa le nuove credenziali."), 500);
+                }
+            } else {
+                setCredsStatus({ type: 'error', message: data.error || 'Errore durante l\'aggiornamento.' });
+            }
+        } catch (e) {
+            setCredsStatus({ type: 'error', message: 'Errore di connessione al server.' });
+        }
     };
 
     const handleExport = () => {
@@ -128,6 +187,7 @@ export const DataManagement = () => {
             // Full Replace
             finalState = { ...stagedData };
             finalState.isAuthenticated = true; // Ensure auth persistence
+            finalState.currentUser = state.currentUser; // Keep current user session
             
             // Calculate pseudo-stats for report
             opsUpdated = finalState.operators.length;
@@ -274,31 +334,6 @@ export const DataManagement = () => {
                                 </div>
                             </div>
                         )}
-
-                        {/* Cloud Access Code Section */}
-                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-inner">
-                            <h4 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
-                                <Lock size={14} /> Configurazione Accesso
-                            </h4>
-                            <div className="flex flex-col sm:flex-row gap-3 items-end">
-                                <div className="flex-1 w-full">
-                                    <Input 
-                                        label="Codice di Accesso Cloud (Master Key)" 
-                                        type="password"
-                                        placeholder="Inserisci il codice segreto per sbloccare il Cloud..." 
-                                        value={cloudToken}
-                                        onChange={(e) => setCloudToken(e.target.value)}
-                                        className="mb-0"
-                                    />
-                                </div>
-                                <Button variant="secondary" onClick={handleSaveToken} className="whitespace-nowrap flex gap-2">
-                                    <Key size={16} /> Salva Codice
-                                </Button>
-                            </div>
-                            <p className="text-[10px] text-slate-400 mt-2">
-                                * Il codice deve corrispondere alla variabile <code>APP_ACCESS_CODE</code> impostata sul server.
-                            </p>
-                        </div>
                         
                         <div className="flex gap-4 pt-2">
                             <Button 
@@ -320,6 +355,90 @@ export const DataManagement = () => {
                         <p className="text-xs text-slate-500 italic text-center">
                             "Salvataggio" rende definitiva la versione corrente per tutti. "Ripristino" scarica la versione ufficiale dal server.
                         </p>
+                    </div>
+                </Card>
+
+                {/* Account & Profile Management - NEW */}
+                <Card title="Profilo & Sicurezza" className="md:col-span-2">
+                    <div className="flex flex-col md:flex-row gap-6">
+                        <div className="flex-1 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                             <div className="flex items-center gap-3 mb-4">
+                                 <div className="p-2 bg-indigo-100 text-indigo-600 rounded-full"><UserCog size={20} /></div>
+                                 <div>
+                                     <h4 className="font-bold text-slate-700">Credenziali di Accesso</h4>
+                                     <p className="text-xs text-slate-500">Utente attuale: <strong>{state.currentUser?.username || 'admin'}</strong></p>
+                                 </div>
+                             </div>
+
+                             <div className="flex gap-2 mb-4 p-1 bg-white rounded border border-slate-200">
+                                 <button 
+                                    onClick={() => { setCredsMode('PASSWORD'); setCredsStatus(null); }}
+                                    className={`flex-1 text-xs font-bold py-1.5 rounded transition-colors ${credsMode === 'PASSWORD' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                                 >
+                                     Cambia Password
+                                 </button>
+                                 <button 
+                                    onClick={() => { setCredsMode('USERNAME'); setCredsStatus(null); }}
+                                    className={`flex-1 text-xs font-bold py-1.5 rounded transition-colors ${credsMode === 'USERNAME' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                                 >
+                                     Cambia Nome Utente
+                                 </button>
+                             </div>
+
+                             <div className="space-y-3">
+                                 <Input 
+                                    type="password"
+                                    label="Password Attuale (per conferma)"
+                                    placeholder="Inserisci la password attuale..."
+                                    value={newCreds.currentPassword}
+                                    onChange={(e) => setNewCreds({...newCreds, currentPassword: e.target.value})}
+                                 />
+                                 <Input 
+                                    type={credsMode === 'PASSWORD' ? 'password' : 'text'}
+                                    label={credsMode === 'PASSWORD' ? 'Nuova Password' : 'Nuovo Nome Utente'}
+                                    placeholder={credsMode === 'PASSWORD' ? 'Nuova password sicura...' : 'Nuovo nome utente...'}
+                                    value={newCreds.newValue}
+                                    onChange={(e) => setNewCreds({...newCreds, newValue: e.target.value})}
+                                 />
+                                 
+                                 {credsStatus && (
+                                     <div className={`text-xs p-2 rounded ${credsStatus.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                         {credsStatus.message}
+                                     </div>
+                                 )}
+
+                                 <div className="flex justify-end pt-2">
+                                     <Button variant="primary" onClick={handleUpdateCredentials} className="text-xs">
+                                         Aggiorna {credsMode === 'PASSWORD' ? 'Password' : 'Nome Utente'}
+                                     </Button>
+                                 </div>
+                             </div>
+                        </div>
+
+                        <div className="flex-1 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                            <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
+                                <Key size={16} className="text-slate-500" /> Configurazione Accesso
+                            </h4>
+                            <p className="text-xs text-slate-500 mb-4">
+                                Se l'applicazione è in modalità Cloud (Serverless), è necessario un token di accesso per sincronizzare i dati. 
+                                <br/><span className="italic opacity-80 font-semibold text-indigo-600">(Nota: Per l'integrazione Google Fogli, vai in Configurazione {'>'} Integrazioni).</span>
+                            </p>
+                            
+                            <div className="space-y-3">
+                                <Input 
+                                    label="Codice di Accesso Cloud (Master Key)" 
+                                    type="password"
+                                    placeholder="Inserisci il codice segreto..." 
+                                    value={cloudToken}
+                                    onChange={(e) => setCloudToken(e.target.value)}
+                                />
+                                <div className="flex justify-end">
+                                    <Button variant="secondary" onClick={handleSaveToken} className="text-xs">
+                                        Salva Codice
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </Card>
 

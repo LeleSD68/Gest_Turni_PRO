@@ -493,9 +493,9 @@ export const Settings = () => {
                                 <li>Apri il tuo Foglio Google Master.</li>
                                 <li>Vai su <strong>Estensioni</strong> &gt; <strong>Apps Script</strong>.</li>
                                 <li>Incolla lo script fornito (chiedi all'assistente se non ce l'hai).</li>
-                                <li>Clicca su <strong>Distribuisci</strong> &gt; <strong>Nuova distribuzione</strong>.</li>
+                                <li>Clicca sul tasto blu <strong>Distribuisci</strong> &gt; <strong>Nuova distribuzione</strong>.</li>
                                 <li>Seleziona tipo: <strong>Applicazione web</strong>.</li>
-                                <li>Chi ha accesso: <strong>Chiunque</strong>.</li>
+                                <li>Chi ha accesso: <strong>Chiunque</strong> (necessario per l'invio dati).</li>
                                 <li>Copia l'URL generato e incollalo qui sotto.</li>
                             </ol>
                         </div>
@@ -504,7 +504,7 @@ export const Settings = () => {
                     <div className="flex gap-2 items-end">
                         <div className="flex-1">
                             <Input 
-                                label="URL Google Apps Script Web App" 
+                                label="Link Google Script (Codice Condivisione)" 
                                 placeholder="https://script.google.com/macros/s/..." 
                                 value={state.config.googleScriptUrl || ''}
                                 onChange={(e) => updateGoogleConfig(e.target.value)}
