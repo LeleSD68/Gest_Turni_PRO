@@ -7,8 +7,9 @@ export const config = {
 
 // --- Crypto Helpers per PBKDF2 ---
 
-function buf2hex(buffer: ArrayBuffer) {
-  return Array.from(new Uint8Array(buffer))
+function buf2hex(input: ArrayBuffer | Uint8Array) {
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+  return Array.from(bytes)
     .map(x => x.toString(16).padStart(2, '0'))
     .join('');
 }
@@ -93,34 +94,37 @@ export default async function handler(request: Request) {
     const sql = neon(process.env.DATABASE_URL);
     const { action, username, password, newPassword, newUsername, masterKey } = await request.json();
 
-    // Init Tables
-    await sql(`
+    // Init Tables - Separate calls to avoid "cannot insert multiple commands into a prepared statement"
+    await sql`
       CREATE TABLE IF NOT EXISTS users (
         username TEXT PRIMARY KEY,
         password_hash TEXT NOT NULL,
         role TEXT DEFAULT 'user',
         created_at TIMESTAMP DEFAULT NOW()
-      );
+      )
+    `;
+    
+    await sql`
       CREATE TABLE IF NOT EXISTS sessions (
         token TEXT PRIMARY KEY,
         username TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT NOW(),
         expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '7 days')
-      );
-    `);
+      )
+    `;
 
     // Check for default admin
-    const existingUsers = await sql('SELECT count(*) FROM users');
+    const existingUsers = await sql`SELECT count(*) FROM users`;
     if (parseInt(existingUsers[0].count) === 0) {
       // Usa il nuovo sistema di hash sicuro anche per l'admin di default
       const defaultHash = await hashPassword('admin');
-      await sql('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)', ['admin', defaultHash, 'admin']);
+      await sql`INSERT INTO users (username, password_hash, role) VALUES (${'admin'}, ${defaultHash}, ${'admin'})`;
     }
 
     // LOGIN
     if (action === 'login') {
       // Recupera l'utente per ottenere il salt memorizzato
-      const rows = await sql('SELECT * FROM users WHERE username = $1', [username]);
+      const rows = await sql`SELECT * FROM users WHERE username = ${username}`;
       
       if (rows.length > 0) {
         const storedHash = rows[0].password_hash;
@@ -128,7 +132,7 @@ export default async function handler(request: Request) {
 
         if (isValid) {
             const token = crypto.randomUUID();
-            await sql('INSERT INTO sessions (token, username) VALUES ($1, $2)', [token, username]);
+            await sql`INSERT INTO sessions (token, username) VALUES (${token}, ${username})`;
             return new Response(JSON.stringify({ success: true, token, user: { username: rows[0].username, role: rows[0].role } }), { status: 200 });
         }
       } 
@@ -146,7 +150,7 @@ export default async function handler(request: Request) {
              return new Response(JSON.stringify({ error: 'Codice Master (Cloud Key) non valido' }), { status: 403 });
         }
 
-        const rows = await sql('SELECT username FROM users ORDER BY username ASC');
+        const rows = await sql`SELECT username FROM users ORDER BY username ASC`;
         const usernames = rows.map(r => r.username);
 
         return new Response(JSON.stringify({ success: true, usernames }), { status: 200 });
@@ -162,16 +166,16 @@ export default async function handler(request: Request) {
              return new Response(JSON.stringify({ error: 'Codice Master (Cloud Key) non valido' }), { status: 403 });
         }
 
-        const userExists = await sql('SELECT username FROM users WHERE username = $1', [username]);
+        const userExists = await sql`SELECT username FROM users WHERE username = ${username}`;
         if (userExists.length === 0) {
             return new Response(JSON.stringify({ error: 'Utente non trovato' }), { status: 404 });
         }
 
         const newHash = await hashPassword(newPassword);
-        await sql('UPDATE users SET password_hash = $1 WHERE username = $2', [newHash, username]);
+        await sql`UPDATE users SET password_hash = ${newHash} WHERE username = ${username}`;
         
         // Invalidate all existing sessions for security
-        await sql('DELETE FROM sessions WHERE username = $1', [username]);
+        await sql`DELETE FROM sessions WHERE username = ${username}`;
 
         return new Response(JSON.stringify({ success: true }), { status: 200 });
     }
@@ -181,11 +185,11 @@ export default async function handler(request: Request) {
       const authHeader = request.headers.get('Authorization');
       const token = authHeader?.replace('Bearer ', '');
       
-      const sessionRows = await sql(`
+      const sessionRows = await sql`
         SELECT u.role FROM sessions s 
         JOIN users u ON s.username = u.username 
-        WHERE s.token = $1 AND s.expires_at > NOW()
-      `, [token]);
+        WHERE s.token = ${token} AND s.expires_at > NOW()
+      `;
 
       if (sessionRows.length === 0 || sessionRows[0].role !== 'admin') {
         return new Response(JSON.stringify({ error: 'Non autorizzato' }), { status: 403 });
@@ -193,7 +197,7 @@ export default async function handler(request: Request) {
 
       const safeHash = await hashPassword(password);
       try {
-        await sql('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)', [username, safeHash, 'user']);
+        await sql`INSERT INTO users (username, password_hash, role) VALUES (${username}, ${safeHash}, 'user')`;
         return new Response(JSON.stringify({ success: true }), { status: 200 });
       } catch (e) {
         return new Response(JSON.stringify({ error: 'Utente già esistente' }), { status: 400 });
@@ -205,7 +209,7 @@ export default async function handler(request: Request) {
       const authHeader = request.headers.get('Authorization');
       const token = authHeader?.replace('Bearer ', '');
       
-      const sessionRows = await sql('SELECT username FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
+      const sessionRows = await sql`SELECT username FROM sessions WHERE token = ${token} AND expires_at > NOW()`;
       
       if (sessionRows.length === 0) {
         return new Response(JSON.stringify({ error: 'Sessione scaduta' }), { status: 401 });
@@ -215,14 +219,14 @@ export default async function handler(request: Request) {
       const targetUser = username || currentUser;
 
       if (targetUser !== currentUser) {
-         const roleRows = await sql('SELECT role FROM users WHERE username = $1', [currentUser]);
+         const roleRows = await sql`SELECT role FROM users WHERE username = ${currentUser}`;
          if (roleRows.length === 0 || roleRows[0].role !== 'admin') {
              return new Response(JSON.stringify({ error: 'Non autorizzato' }), { status: 403 });
          }
       }
 
       const newHash = await hashPassword(newPassword);
-      await sql('UPDATE users SET password_hash = $1 WHERE username = $2', [newHash, targetUser]);
+      await sql`UPDATE users SET password_hash = ${newHash} WHERE username = ${targetUser}`;
       return new Response(JSON.stringify({ success: true }), { status: 200 });
     }
 
@@ -233,7 +237,7 @@ export default async function handler(request: Request) {
 
       if (!token) return new Response(JSON.stringify({ error: 'Token mancante' }), { status: 401 });
 
-      const sessionRows = await sql('SELECT username FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
+      const sessionRows = await sql`SELECT username FROM sessions WHERE token = ${token} AND expires_at > NOW()`;
       
       if (sessionRows.length === 0) {
         return new Response(JSON.stringify({ error: 'Sessione scaduta' }), { status: 401 });
@@ -243,7 +247,7 @@ export default async function handler(request: Request) {
       const currentPassword = password; 
       
       // Verifica password attuale
-      const userCheck = await sql('SELECT password_hash FROM users WHERE username = $1', [currentUser]);
+      const userCheck = await sql`SELECT password_hash FROM users WHERE username = ${currentUser}`;
       
       let isPasswordCorrect = false;
       if (userCheck.length > 0) {
@@ -255,14 +259,14 @@ export default async function handler(request: Request) {
       }
 
       // Check duplicati
-      const duplicateCheck = await sql('SELECT username FROM users WHERE username = $1', [newUsername]);
+      const duplicateCheck = await sql`SELECT username FROM users WHERE username = ${newUsername}`;
       if (duplicateCheck.length > 0) {
           return new Response(JSON.stringify({ error: 'Nome utente già in uso' }), { status: 400 });
       }
 
       // Update DB
-      await sql('UPDATE users SET username = $1 WHERE username = $2', [newUsername, currentUser]);
-      await sql('UPDATE sessions SET username = $1 WHERE username = $2', [newUsername, currentUser]);
+      await sql`UPDATE users SET username = ${newUsername} WHERE username = ${currentUser}`;
+      await sql`UPDATE sessions SET username = ${newUsername} WHERE username = ${currentUser}`;
 
       return new Response(JSON.stringify({ success: true, newUsername }), { status: 200 });
     }

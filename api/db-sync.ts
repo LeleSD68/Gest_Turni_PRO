@@ -48,10 +48,10 @@ export default async function handler(request: Request) {
     else if (token) {
         try {
              // Verifica se il token corrisponde a una sessione attiva nel DB
-             const rows = await sql(`
+             const rows = await sql`
                 SELECT username FROM sessions 
-                WHERE token = $1 AND expires_at > NOW()
-             `, [token]);
+                WHERE token = ${token} AND expires_at > NOW()
+             `;
              
              if (rows.length > 0) {
                  isAuthorized = true;
@@ -70,17 +70,17 @@ export default async function handler(request: Request) {
     }
 
     // Inizializzazione Tabelle (Garantita per ogni tipo di richiesta)
-    await sql(`
+    await sql`
         CREATE TABLE IF NOT EXISTS shiftmaster_state (
             id INT PRIMARY KEY DEFAULT 1,
             data JSONB,
             updated_at TIMESTAMP DEFAULT NOW(),
             CONSTRAINT single_row CHECK (id = 1)
         );
-    `);
+    `;
 
     if (request.method === 'GET') {
-        const rows = await sql('SELECT data FROM shiftmaster_state WHERE id = 1');
+        const rows = await sql`SELECT data FROM shiftmaster_state WHERE id = 1`;
         const data = rows.length > 0 ? rows[0].data : {};
         
         return new Response(JSON.stringify(data), { 
@@ -91,13 +91,14 @@ export default async function handler(request: Request) {
     
     if (request.method === 'POST') {
         const body = await request.json();
+        const jsonData = JSON.stringify(body);
         
-        await sql(`
+        await sql`
             INSERT INTO shiftmaster_state (id, data, updated_at)
-            VALUES (1, $1, NOW())
+            VALUES (1, ${jsonData}::jsonb, NOW())
             ON CONFLICT (id) DO UPDATE 
-            SET data = $1, updated_at = NOW()
-        `, [JSON.stringify(body)]);
+            SET data = ${jsonData}::jsonb, updated_at = NOW()
+        `;
         
         return new Response(JSON.stringify({ success: true }), { 
             status: 200, 
