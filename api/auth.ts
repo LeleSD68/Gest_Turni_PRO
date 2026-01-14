@@ -1,5 +1,5 @@
 
-import { Pool } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 
 export const config = {
   runtime: 'edge',
@@ -90,11 +90,11 @@ export default async function handler(request: Request) {
       return new Response(JSON.stringify({ error: 'DATABASE_URL missing' }), { status: 500 });
     }
 
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const sql = neon(process.env.DATABASE_URL);
     const { action, username, password, newPassword, newUsername, masterKey } = await request.json();
 
     // Init Tables
-    await pool.query(`
+    await sql(`
       CREATE TABLE IF NOT EXISTS users (
         username TEXT PRIMARY KEY,
         password_hash TEXT NOT NULL,
@@ -110,17 +110,17 @@ export default async function handler(request: Request) {
     `);
 
     // Check for default admin
-    const { rows: existingUsers } = await pool.query('SELECT count(*) FROM users');
+    const existingUsers = await sql('SELECT count(*) FROM users');
     if (parseInt(existingUsers[0].count) === 0) {
       // Usa il nuovo sistema di hash sicuro anche per l'admin di default
       const defaultHash = await hashPassword('admin');
-      await pool.query('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)', ['admin', defaultHash, 'admin']);
+      await sql('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)', ['admin', defaultHash, 'admin']);
     }
 
     // LOGIN
     if (action === 'login') {
       // Recupera l'utente per ottenere il salt memorizzato
-      const { rows } = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+      const rows = await sql('SELECT * FROM users WHERE username = $1', [username]);
       
       if (rows.length > 0) {
         const storedHash = rows[0].password_hash;
@@ -128,13 +128,11 @@ export default async function handler(request: Request) {
 
         if (isValid) {
             const token = crypto.randomUUID();
-            await pool.query('INSERT INTO sessions (token, username) VALUES ($1, $2)', [token, username]);
-            await pool.end();
+            await sql('INSERT INTO sessions (token, username) VALUES ($1, $2)', [token, username]);
             return new Response(JSON.stringify({ success: true, token, user: { username: rows[0].username, role: rows[0].role } }), { status: 200 });
         }
       } 
       
-      await pool.end();
       return new Response(JSON.stringify({ error: 'Credenziali non valide' }), { status: 401 });
     }
 
@@ -145,14 +143,12 @@ export default async function handler(request: Request) {
         }
 
         if (masterKey !== process.env.APP_ACCESS_CODE) {
-             await pool.end();
              return new Response(JSON.stringify({ error: 'Codice Master (Cloud Key) non valido' }), { status: 403 });
         }
 
-        const { rows } = await pool.query('SELECT username FROM users ORDER BY username ASC');
+        const rows = await sql('SELECT username FROM users ORDER BY username ASC');
         const usernames = rows.map(r => r.username);
 
-        await pool.end();
         return new Response(JSON.stringify({ success: true, usernames }), { status: 200 });
     }
 
@@ -163,23 +159,20 @@ export default async function handler(request: Request) {
         }
 
         if (masterKey !== process.env.APP_ACCESS_CODE) {
-             await pool.end();
              return new Response(JSON.stringify({ error: 'Codice Master (Cloud Key) non valido' }), { status: 403 });
         }
 
-        const { rows: userExists } = await pool.query('SELECT username FROM users WHERE username = $1', [username]);
+        const userExists = await sql('SELECT username FROM users WHERE username = $1', [username]);
         if (userExists.length === 0) {
-            await pool.end();
             return new Response(JSON.stringify({ error: 'Utente non trovato' }), { status: 404 });
         }
 
         const newHash = await hashPassword(newPassword);
-        await pool.query('UPDATE users SET password_hash = $1 WHERE username = $2', [newHash, username]);
+        await sql('UPDATE users SET password_hash = $1 WHERE username = $2', [newHash, username]);
         
         // Invalidate all existing sessions for security
-        await pool.query('DELETE FROM sessions WHERE username = $1', [username]);
+        await sql('DELETE FROM sessions WHERE username = $1', [username]);
 
-        await pool.end();
         return new Response(JSON.stringify({ success: true }), { status: 200 });
     }
 
@@ -188,24 +181,21 @@ export default async function handler(request: Request) {
       const authHeader = request.headers.get('Authorization');
       const token = authHeader?.replace('Bearer ', '');
       
-      const { rows: sessionRows } = await pool.query(`
+      const sessionRows = await sql(`
         SELECT u.role FROM sessions s 
         JOIN users u ON s.username = u.username 
         WHERE s.token = $1 AND s.expires_at > NOW()
       `, [token]);
 
       if (sessionRows.length === 0 || sessionRows[0].role !== 'admin') {
-        await pool.end();
         return new Response(JSON.stringify({ error: 'Non autorizzato' }), { status: 403 });
       }
 
       const safeHash = await hashPassword(password);
       try {
-        await pool.query('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)', [username, safeHash, 'user']);
-        await pool.end();
+        await sql('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)', [username, safeHash, 'user']);
         return new Response(JSON.stringify({ success: true }), { status: 200 });
       } catch (e) {
-        await pool.end();
         return new Response(JSON.stringify({ error: 'Utente già esistente' }), { status: 400 });
       }
     }
@@ -215,10 +205,9 @@ export default async function handler(request: Request) {
       const authHeader = request.headers.get('Authorization');
       const token = authHeader?.replace('Bearer ', '');
       
-      const { rows: sessionRows } = await pool.query('SELECT username FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
+      const sessionRows = await sql('SELECT username FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
       
       if (sessionRows.length === 0) {
-        await pool.end();
         return new Response(JSON.stringify({ error: 'Sessione scaduta' }), { status: 401 });
       }
 
@@ -226,16 +215,14 @@ export default async function handler(request: Request) {
       const targetUser = username || currentUser;
 
       if (targetUser !== currentUser) {
-         const { rows: roleRows } = await pool.query('SELECT role FROM users WHERE username = $1', [currentUser]);
+         const roleRows = await sql('SELECT role FROM users WHERE username = $1', [currentUser]);
          if (roleRows.length === 0 || roleRows[0].role !== 'admin') {
-             await pool.end();
              return new Response(JSON.stringify({ error: 'Non autorizzato' }), { status: 403 });
          }
       }
 
       const newHash = await hashPassword(newPassword);
-      await pool.query('UPDATE users SET password_hash = $1 WHERE username = $2', [newHash, targetUser]);
-      await pool.end();
+      await sql('UPDATE users SET password_hash = $1 WHERE username = $2', [newHash, targetUser]);
       return new Response(JSON.stringify({ success: true }), { status: 200 });
     }
 
@@ -246,10 +233,9 @@ export default async function handler(request: Request) {
 
       if (!token) return new Response(JSON.stringify({ error: 'Token mancante' }), { status: 401 });
 
-      const { rows: sessionRows } = await pool.query('SELECT username FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
+      const sessionRows = await sql('SELECT username FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
       
       if (sessionRows.length === 0) {
-        await pool.end();
         return new Response(JSON.stringify({ error: 'Sessione scaduta' }), { status: 401 });
       }
 
@@ -257,7 +243,7 @@ export default async function handler(request: Request) {
       const currentPassword = password; 
       
       // Verifica password attuale
-      const { rows: userCheck } = await pool.query('SELECT password_hash FROM users WHERE username = $1', [currentUser]);
+      const userCheck = await sql('SELECT password_hash FROM users WHERE username = $1', [currentUser]);
       
       let isPasswordCorrect = false;
       if (userCheck.length > 0) {
@@ -265,26 +251,22 @@ export default async function handler(request: Request) {
       }
       
       if (!isPasswordCorrect) {
-          await pool.end();
           return new Response(JSON.stringify({ error: 'Password attuale non corretta' }), { status: 403 });
       }
 
       // Check duplicati
-      const { rows: duplicateCheck } = await pool.query('SELECT username FROM users WHERE username = $1', [newUsername]);
+      const duplicateCheck = await sql('SELECT username FROM users WHERE username = $1', [newUsername]);
       if (duplicateCheck.length > 0) {
-          await pool.end();
           return new Response(JSON.stringify({ error: 'Nome utente già in uso' }), { status: 400 });
       }
 
       // Update DB
-      await pool.query('UPDATE users SET username = $1 WHERE username = $2', [newUsername, currentUser]);
-      await pool.query('UPDATE sessions SET username = $1 WHERE username = $2', [newUsername, currentUser]);
+      await sql('UPDATE users SET username = $1 WHERE username = $2', [newUsername, currentUser]);
+      await sql('UPDATE sessions SET username = $1 WHERE username = $2', [newUsername, currentUser]);
 
-      await pool.end();
       return new Response(JSON.stringify({ success: true, newUsername }), { status: 200 });
     }
 
-    await pool.end();
     return new Response(JSON.stringify({ error: 'Azione non valida' }), { status: 400 });
 
   } catch (err: any) {

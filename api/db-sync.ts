@@ -1,5 +1,5 @@
 
-import { Pool } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 
 export const config = {
   runtime: 'edge',
@@ -16,8 +16,6 @@ export default async function handler(request: Request) {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
   try {
     if (!process.env.DATABASE_URL) {
       return new Response(JSON.stringify({ error: 'DATABASE_URL non configurata nel server' }), { 
@@ -25,10 +23,11 @@ export default async function handler(request: Request) {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
+    
+    const sql = neon(process.env.DATABASE_URL);
 
     // CHECK SICUREZZA CRITICO
     if (!process.env.APP_ACCESS_CODE) {
-       // Impedisce l'avvio se la variabile d'ambiente non è settata in Vercel
        return new Response(JSON.stringify({ error: 'CRITICO: Variabile APP_ACCESS_CODE mancante su Vercel.' }), { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -38,16 +37,40 @@ export default async function handler(request: Request) {
     const authHeader = request.headers.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
 
-    // Verifica token rigorosa
-    if (!token || token !== process.env.APP_ACCESS_CODE) {
-      return new Response(JSON.stringify({ error: 'Accesso Negato: Token Sync non valido.' }), { 
+    // --- Sincronizzazione Intelligente ---
+    let isAuthorized = false;
+
+    // 1. Verifica Master Key (Accesso Diretto)
+    if (token === process.env.APP_ACCESS_CODE) {
+        isAuthorized = true;
+    } 
+    // 2. Verifica Sessione Utente (Accesso Tramite Login)
+    else if (token) {
+        try {
+             // Verifica se il token corrisponde a una sessione attiva nel DB
+             const rows = await sql(`
+                SELECT username FROM sessions 
+                WHERE token = $1 AND expires_at > NOW()
+             `, [token]);
+             
+             if (rows.length > 0) {
+                 isAuthorized = true;
+             }
+        } catch (e) {
+            // Ignora errori (es. tabella non esistente), fallisce sicuro su unauthorized
+            console.warn("Sync auth check failed:", e);
+        }
+    }
+
+    if (!isAuthorized) {
+      return new Response(JSON.stringify({ error: 'Accesso Negato: Token Sync non valido o sessione scaduta.' }), { 
         status: 401, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
 
     // Inizializzazione Tabelle (Garantita per ogni tipo di richiesta)
-    await pool.query(`
+    await sql(`
         CREATE TABLE IF NOT EXISTS shiftmaster_state (
             id INT PRIMARY KEY DEFAULT 1,
             data JSONB,
@@ -57,7 +80,7 @@ export default async function handler(request: Request) {
     `);
 
     if (request.method === 'GET') {
-        const { rows } = await pool.query('SELECT data FROM shiftmaster_state WHERE id = 1');
+        const rows = await sql('SELECT data FROM shiftmaster_state WHERE id = 1');
         const data = rows.length > 0 ? rows[0].data : {};
         
         return new Response(JSON.stringify(data), { 
@@ -69,7 +92,7 @@ export default async function handler(request: Request) {
     if (request.method === 'POST') {
         const body = await request.json();
         
-        await pool.query(`
+        await sql(`
             INSERT INTO shiftmaster_state (id, data, updated_at)
             VALUES (1, $1, NOW())
             ON CONFLICT (id) DO UPDATE 
@@ -93,9 +116,5 @@ export default async function handler(request: Request) {
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
-  } finally {
-      // In Edge runtime pool.end() non è sempre necessario o può causare problemi se fatto prematuramente
-      // ma con @neondatabase/serverless è buona norma se non si usa una connessione persistente
-      await pool.end().catch(() => {});
   }
 }

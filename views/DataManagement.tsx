@@ -23,8 +23,8 @@ export const DataManagement = () => {
     const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
     const [showConfirmReset, setShowConfirmReset] = useState(false);
     
-    // Cloud Access Token state
-    const [cloudToken, setCloudToken] = useState(() => localStorage.getItem('sm_token') || '');
+    // Cloud Access Token state - NO AUTOFILL per evitare sovrascrittura sessione
+    const [cloudToken, setCloudToken] = useState('');
 
     // Credentials Management State
     const [credsMode, setCredsMode] = useState<'PASSWORD' | 'USERNAME'>('PASSWORD');
@@ -46,9 +46,15 @@ export const DataManagement = () => {
     const [importReport, setImportReport] = useState<ImportReport | null>(null);
 
     const handleSaveToken = () => {
-        localStorage.setItem('sm_token', cloudToken);
-        alert("Token salvato localmente. Tenta ora una sincronizzazione.");
-        syncFromCloud(true);
+        if (!cloudToken) return;
+        
+        const confirmMsg = "ATTENZIONE:\n\nInserendo manualmente un Codice Master, la tua sessione utente corrente verrà disattivata.\n\nNon potrai più cambiare password o nome utente finché non effettuerai nuovamente il Login con le tue credenziali.\n\nVuoi procedere?";
+        
+        if (window.confirm(confirmMsg)) {
+            localStorage.setItem('sm_token', cloudToken);
+            alert("Codice Master salvato. La sincronizzazione userà questo codice.");
+            syncFromCloud(true);
+        }
     };
 
     const handleUpdateCredentials = async () => {
@@ -93,8 +99,6 @@ export const DataManagement = () => {
                 if (credsMode === 'USERNAME') {
                     // Update local storage and state immediately
                     localStorage.setItem('sm_username', data.newUsername);
-                    // Force logout to re-login with new creds logic if needed, but session is valid
-                    // Let's just alert the user
                     setTimeout(() => alert("Nome utente modificato. Al prossimo login usa le nuove credenziali."), 500);
                 }
             } else {
@@ -358,7 +362,7 @@ export const DataManagement = () => {
                     </div>
                 </Card>
 
-                {/* Account & Profile Management - NEW */}
+                {/* Account & Profile Management */}
                 <Card title="Profilo & Sicurezza" className="md:col-span-2">
                     <div className="flex flex-col md:flex-row gap-6">
                         <div className="flex-1 bg-slate-50 p-4 rounded-lg border border-slate-200">
@@ -417,24 +421,28 @@ export const DataManagement = () => {
 
                         <div className="flex-1 bg-slate-50 p-4 rounded-lg border border-slate-200">
                             <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
-                                <Key size={16} className="text-slate-500" /> Configurazione Accesso
+                                <Key size={16} className="text-slate-500" /> Configurazione Manuale
                             </h4>
-                            <p className="text-xs text-slate-500 mb-4">
-                                Se l'applicazione è in modalità Cloud (Serverless), è necessario un token di accesso per sincronizzare i dati. 
-                                <br/><span className="italic opacity-80 font-semibold text-indigo-600">(Nota: Per l'integrazione Google Fogli, vai in Configurazione {'>'} Integrazioni).</span>
-                            </p>
+                            
+                            <div className="bg-amber-50 border border-amber-200 p-3 rounded mb-4 text-xs text-amber-800">
+                                <div className="font-bold flex items-center gap-1 mb-1"><AlertTriangle size={12}/> Attenzione</div>
+                                Sei già connesso! Il sistema usa automaticamente la tua sessione per sincronizzare.
+                                <br/><br/>
+                                Inserisci un codice qui <strong>solo se necessario</strong> (es. ripristino di emergenza). 
+                                Farlo disconnetterà il tuo utente dalle funzioni di profilo.
+                            </div>
                             
                             <div className="space-y-3">
                                 <Input 
-                                    label="Codice di Accesso Cloud (Master Key)" 
+                                    label="Codice Master (Override)" 
                                     type="password"
-                                    placeholder="Inserisci il codice segreto..." 
+                                    placeholder="Sovrascrivi token sessione..." 
                                     value={cloudToken}
                                     onChange={(e) => setCloudToken(e.target.value)}
                                 />
                                 <div className="flex justify-end">
-                                    <Button variant="secondary" onClick={handleSaveToken} className="text-xs">
-                                        Salva Codice
+                                    <Button variant="secondary" onClick={handleSaveToken} className="text-xs" disabled={!cloudToken}>
+                                        Applica Codice Manuale
                                     </Button>
                                 </div>
                             </div>
