@@ -35,6 +35,7 @@ const initialState: AppState = {
     { id: 'mal', code: 'MAL', name: 'Malattia', color: '#ff0000', hours: 0, isNight: false, isWeekend: false, inheritsHours: true }, 
     { id: 'a', code: 'A', name: 'Assenza', color: '#827d7d', hours: 0, isNight: false, isWeekend: false }
   ],
+  specialEventTypes: ['Straordinario', 'Rientro', 'Ferie (Ore)', 'Permesso', 'Malattia', 'Recupero', 'Altro', 'Gettone'],
   assignments: [
     { id: 'rubino', code: 'Rubino', name: '5° Unità Saletta', color: '#ef4444' },
     { id: 'turchese', code: 'Turchese', name: '3° Unità Saletta', color: '#06b6d4' },
@@ -89,6 +90,8 @@ type Action =
   | { type: 'DELETE_ASSIGNMENT_DEF'; payload: string }
   | { type: 'UPDATE_DAY_NOTE'; payload: { date: string; note: string | DayNote } }
   | { type: 'REORDER_OPERATORS'; payload: Operator[] }
+  | { type: 'ADD_SPECIAL_EVENT_TYPE'; payload: string }
+  | { type: 'DELETE_SPECIAL_EVENT_TYPE'; payload: string }
   | { type: 'LOGIN_SUCCESS'; payload?: { username: string; role: string } }
   | { type: 'LOGOUT' }
   | { type: 'UNDO' }
@@ -125,6 +128,8 @@ const appReducer = (state: AppState, action: Action): AppState => {
     case 'DELETE_ASSIGNMENT_DEF': return { ...state, assignments: state.assignments.filter(a => a.id !== action.payload) };
     case 'UPDATE_DAY_NOTE': return { ...state, dayNotes: { ...state.dayNotes, [action.payload.date]: action.payload.note } };
     case 'REORDER_OPERATORS': return { ...state, operators: action.payload };
+    case 'ADD_SPECIAL_EVENT_TYPE': return { ...state, specialEventTypes: [...(state.specialEventTypes || []), action.payload] };
+    case 'DELETE_SPECIAL_EVENT_TYPE': return { ...state, specialEventTypes: (state.specialEventTypes || []).filter(t => t !== action.payload) };
     default: return state;
   }
 };
@@ -167,6 +172,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const user = localStorage.getItem('sm_username');
       if (stored) {
         const merged = { ...initialState, ...JSON.parse(stored) };
+        // Ensure new arrays exist if loading old state
+        if (!merged.specialEventTypes) merged.specialEventTypes = initialState.specialEventTypes;
+        
         merged.isAuthenticated = !!token;
         if(user) merged.currentUser = { username: user, role: 'admin' };
         return { past: [], present: merged, future: [] };

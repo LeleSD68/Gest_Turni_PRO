@@ -151,6 +151,7 @@ export interface AppState {
   currentDate: string; // YYYY-MM-01
   operators: Operator[];
   shiftTypes: ShiftType[];
+  specialEventTypes: string[]; // NEW: Configurable Special Event Types
   matrices: Matrix[];
   assignments: Assignment[];
   plannerData: Record<string, PlannerEntry>; // key: operatorId_date

@@ -2,18 +2,19 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../store';
 import { Card, Input, Button, Badge, Modal, Select } from '../components/UI';
-import { Trash2, Plus, Edit, X, Copy, RotateCcw, Calculator, AlertTriangle, ShieldAlert, GripVertical, Bot, Network, FileSpreadsheet, Briefcase } from 'lucide-react';
+import { Trash2, Plus, Edit, X, Copy, RotateCcw, Calculator, AlertTriangle, ShieldAlert, GripVertical, Bot, Network, FileSpreadsheet, Briefcase, Star, Zap } from 'lucide-react';
 import { AppState, Operator, ShiftType, Matrix, Assignment } from '../types';
 
 export const Settings = () => {
   const { state, dispatch } = useApp();
-  const [activeTab, setActiveTab] = useState<'RULES' | 'OPS' | 'SHIFTS' | 'MATRICES' | 'ASSIGNMENTS' | 'AI'>('RULES');
+  const [activeTab, setActiveTab] = useState<'RULES' | 'OPS' | 'SHIFTS' | 'MATRICES' | 'ASSIGNMENTS' | 'EXTRA' | 'AI'>('RULES');
 
   // States for CRUD
   const [editingShift, setEditingShift] = useState<Partial<ShiftType> | null>(null);
   const [editingMatrix, setEditingMatrix] = useState<Partial<Matrix> | null>(null);
   const [editingOperator, setEditingOperator] = useState<Partial<Operator> | null>(null);
   const [editingAssignment, setEditingAssignment] = useState<Partial<Assignment> | null>(null);
+  const [newExtraType, setNewExtraType] = useState('');
   
   // Drag & Drop State for Operators
   const [draggingOpId, setDraggingOpId] = useState<string | null>(null);
@@ -216,6 +217,13 @@ export const Settings = () => {
       setEditingMatrix({ ...editingMatrix, sequence: [...seq, code] });
   };
 
+  const addSpecialType = () => {
+      if (!newExtraType.trim()) return;
+      if ((state.specialEventTypes || []).includes(newExtraType.trim())) return;
+      dispatch({ type: 'ADD_SPECIAL_EVENT_TYPE', payload: newExtraType.trim() });
+      setNewExtraType('');
+  };
+
   const handleDelete = () => {
       if (!deleteTarget) return;
       
@@ -306,6 +314,7 @@ export const Settings = () => {
                   { id: 'SHIFTS', label: 'Turni' },
                   { id: 'MATRICES', label: 'Matrici' },
                   { id: 'ASSIGNMENTS', label: 'Incarichi' },
+                  { id: 'EXTRA', label: 'Extra (Voci Speciali)' },
                   { id: 'AI', label: 'Integrazioni' },
               ].map(tab => (
                   <button 
@@ -439,6 +448,50 @@ export const Settings = () => {
                      </div>
                 </Card>
             </div>
+        )}
+
+        {/* Extra Management */}
+        {activeTab === 'EXTRA' && (
+            <Card title="Gestione Voci Speciali (Extra)">
+                <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 mb-4 text-xs text-amber-800 flex gap-2">
+                    <Star size={16} className="shrink-0 text-amber-500" />
+                    <span>
+                        Queste voci compaiono nel menu a tendina "Voci Speciali" quando modifichi un turno.
+                        Servono per registrare straordinari, gettoni, rientri, permessi orari, ecc.
+                    </span>
+                </div>
+
+                <div className="flex gap-2 mb-6">
+                    <Input 
+                        placeholder="Nome nuova voce (es. Rientro, Straordinario...)" 
+                        value={newExtraType} 
+                        onChange={(e) => setNewExtraType(e.target.value)}
+                        className="flex-1"
+                        onKeyDown={(e) => e.key === 'Enter' && addSpecialType()}
+                    />
+                    <Button onClick={addSpecialType} disabled={!newExtraType.trim()}>
+                        <Plus size={16} className="mr-1 inline" /> Aggiungi
+                    </Button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {(state.specialEventTypes || []).map((type) => (
+                        <div key={type} className="flex justify-between items-center p-3 bg-white border rounded shadow-sm hover:shadow-md transition-shadow">
+                            <span className="font-medium text-slate-700">{type}</span>
+                            <button 
+                                onClick={() => {
+                                    if(confirm(`Eliminare la voce "${type}"?`)) {
+                                        dispatch({ type: 'DELETE_SPECIAL_EVENT_TYPE', payload: type });
+                                    }
+                                }}
+                                className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 transition-colors"
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </Card>
         )}
 
         {/* Assignments Management */}
