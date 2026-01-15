@@ -54,7 +54,8 @@ export const Planner = () => {
   const [isExporting, setIsExporting] = useState(false);
   
   const [coveragePopover, setCoveragePopover] = useState<{ date: string; x: number; y: number } | null>(null);
-  const [cellPopupPosition, setCellPopupPosition] = useState<{x: number, y: number, align: 'top' | 'bottom'} | null>(null);
+  // FIX: Updated type for better positioning control
+  const [cellPopupPosition, setCellPopupPosition] = useState<{x: number, top?: number, bottom?: number, maxHeight?: number} | null>(null);
   const [multiSelectPopupPosition, setMultiSelectPopupPosition] = useState<{x: number, y: number} | null>(null);
   const [isMobileToolbarOpen, setIsMobileToolbarOpen] = useState(false);
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
@@ -730,7 +731,7 @@ export const Planner = () => {
       document.body.removeChild(link);
   };
   
-  // ... (handleCellClick, handleRightClick, etc. logic unchanged)
+  // FIXED: Updated handleCellClick to support new safe positioning
   const handleCellClick = (e: React.MouseEvent, opId: string, date: string, isEmployed: boolean) => {
     if (!isEmployed) return;
     const target = e.currentTarget as HTMLElement;
@@ -771,27 +772,36 @@ export const Planner = () => {
     setDraftSpecialEvents(entry?.specialEvents || []);
     setIsSpecialMode((entry?.specialEvents && entry.specialEvents.length > 0) || false);
     
-    const popupHeight = 350; 
-    const popupWidth = 300;
+    // --- POSITIONING LOGIC UPDATE ---
+    const SCREEN_PADDING = 15;
+    const CELL_GAP = 8; // Gap to ensure no overlap
+    const POPUP_WIDTH = 280; // Matches CSS width
+    
     const screenHeight = window.innerHeight;
     const screenWidth = window.innerWidth;
+    const spaceBelow = screenHeight - rect.bottom;
+    const spaceAbove = rect.top;
     
-    let y = rect.bottom + 5;
-    let align: 'top' | 'bottom' = 'bottom';
-    
-    if (y + popupHeight > screenHeight) {
-        y = rect.top - popupHeight - 5;
-        align = 'top';
-    }
-    
+    // Horizontal Positioning (Clamp to screen)
     let x = rect.left + rect.width / 2;
-    if (x + 150 > screenWidth) {
-        x = screenWidth - 160;
+    if (x - (POPUP_WIDTH / 2) < SCREEN_PADDING) x = (POPUP_WIDTH / 2) + SCREEN_PADDING;
+    if (x + (POPUP_WIDTH / 2) > screenWidth - SCREEN_PADDING) x = screenWidth - (POPUP_WIDTH / 2) - SCREEN_PADDING;
+
+    // Vertical Positioning (Prefer below, switch to above if tight)
+    const preferBottom = spaceBelow > 400 || spaceBelow > spaceAbove;
+    
+    let posData: any = { x };
+
+    if (preferBottom) {
+        posData.top = rect.bottom + CELL_GAP;
+        posData.maxHeight = spaceBelow - CELL_GAP - SCREEN_PADDING;
+    } else {
+        // Anchor to bottom of screen relative to cell top
+        posData.bottom = screenHeight - rect.top + CELL_GAP;
+        posData.maxHeight = spaceAbove - CELL_GAP - SCREEN_PADDING;
     }
-    if (x - 150 < 0) {
-        x = 160;
-    }
-    setCellPopupPosition({ x, y, align });
+    
+    setCellPopupPosition(posData);
   };
 
   const handleRightClick = (e: React.MouseEvent, opId: string, date: string, isEmployed: boolean) => {
@@ -1336,7 +1346,7 @@ export const Planner = () => {
                               })}
                           </React.Fragment>
                       );
-                  })}</div></div></div>{selectedCell && cellPopupPosition && !isMatrixView && (<div className="fixed z-[60] bg-white/95 backdrop-blur-sm rounded-lg shadow-2xl border border-slate-200 p-3 w-[280px] animate-in fade-in zoom-in-95 flex flex-col gap-2 max-h-[500px] overflow-y-auto" style={{ left: cellPopupPosition.x, top: cellPopupPosition.y, transform: 'translateX(-50%)' }} onClick={(e) => e.stopPropagation()}>{(() => {
+                  })}</div></div></div>{selectedCell && cellPopupPosition && !isMatrixView && (<div className="fixed z-[60] bg-white/95 backdrop-blur-sm rounded-lg shadow-2xl border border-slate-200 p-3 w-[280px] animate-in fade-in zoom-in-95 flex flex-col gap-2 overflow-y-auto custom-scrollbar" style={{ left: cellPopupPosition.x, top: cellPopupPosition.top, bottom: cellPopupPosition.bottom, maxHeight: cellPopupPosition.maxHeight, transform: 'translateX(-50%)' }} onClick={(e) => e.stopPropagation()}>{(() => {
                       const op = state.operators.find(o => o.id === selectedCell.opId);
                       const entry = getEntry(state, selectedCell.opId, selectedCell.date);
                       const matrixShift = op ? calculateMatrixShift(op, selectedCell.date, state.matrices) : null;
