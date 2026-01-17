@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useApp } from '../store';
 import { getMonthDays, formatDateKey, isOperatorEmployed, getEntry, calculateMatrixShift } from '../utils';
 import { format } from 'date-fns';
@@ -48,6 +48,37 @@ const isItalianHoliday = (date: Date) => {
 export const AssignmentsPrintLayout = () => {
   const { state } = useApp();
   const days = getMonthDays(state.currentDate);
+
+  // Sorting Logic identica al Planner: Matrice -> Ordine Manuale -> Cognome
+  const sortedOperators = useMemo(() => {
+        return state.operators
+            .filter(o => o.isActive)
+            .sort((a, b) => {
+                // 1. Ordina per Matrice (Indice nell'array matrici)
+                const matrixIndexA = state.matrices.findIndex(m => m.id === a.matrixId);
+                const matrixIndexB = state.matrices.findIndex(m => m.id === b.matrixId);
+                
+                const hasMatrixA = matrixIndexA !== -1;
+                const hasMatrixB = matrixIndexB !== -1;
+
+                // Chi ha una matrice viene prima di chi non ce l'ha
+                if (hasMatrixA && !hasMatrixB) return -1;
+                if (!hasMatrixA && hasMatrixB) return 1;
+                
+                // Se entrambi hanno matrice, usa l'ordine delle matrici in config
+                if (hasMatrixA && hasMatrixB && matrixIndexA !== matrixIndexB) {
+                    return matrixIndexA - matrixIndexB;
+                }
+
+                // 2. Ordina per Ordine Manuale (se definito)
+                const orderA = a.order !== undefined ? a.order : 9999;
+                const orderB = b.order !== undefined ? b.order : 9999;
+                if (orderA !== orderB) return orderA - orderB;
+
+                // 3. Fallback alfabetico
+                return a.lastName.localeCompare(b.lastName);
+            });
+    }, [state.operators, state.matrices]);
 
   return (
     <div 
@@ -110,7 +141,7 @@ export const AssignmentsPrintLayout = () => {
             </tr>
           </thead>
           <tbody>
-            {state.operators.filter(o => o.isActive).map(op => {
+            {sortedOperators.map(op => {
               // Calculate Total Hours
               const totalHours = days.reduce((acc, d) => {
                 const dk = formatDateKey(d);

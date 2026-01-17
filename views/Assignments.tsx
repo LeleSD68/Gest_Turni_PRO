@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../store';
@@ -18,6 +19,37 @@ export const Assignments = () => {
     const handlePrevMonth = () => dispatch({ type: 'SET_DATE', payload: format(addMonths(parseISO(state.currentDate), -1), 'yyyy-MM-dd') });
     const handleNextMonth = () => dispatch({ type: 'SET_DATE', payload: format(addMonths(parseISO(state.currentDate), 1), 'yyyy-MM-dd') });
     const handleToday = () => dispatch({ type: 'SET_DATE', payload: format(new Date(), 'yyyy-MM-01') });
+
+    // Sorting Logic identica al Planner: Matrice -> Ordine Manuale -> Cognome
+    const sortedOperators = useMemo(() => {
+        return state.operators
+            .filter(o => o.isActive)
+            .sort((a, b) => {
+                // 1. Ordina per Matrice (Indice nell'array matrici)
+                const matrixIndexA = state.matrices.findIndex(m => m.id === a.matrixId);
+                const matrixIndexB = state.matrices.findIndex(m => m.id === b.matrixId);
+                
+                const hasMatrixA = matrixIndexA !== -1;
+                const hasMatrixB = matrixIndexB !== -1;
+
+                // Chi ha una matrice viene prima di chi non ce l'ha
+                if (hasMatrixA && !hasMatrixB) return -1;
+                if (!hasMatrixA && hasMatrixB) return 1;
+                
+                // Se entrambi hanno matrice, usa l'ordine delle matrici in config
+                if (hasMatrixA && hasMatrixB && matrixIndexA !== matrixIndexB) {
+                    return matrixIndexA - matrixIndexB;
+                }
+
+                // 2. Ordina per Ordine Manuale (se definito)
+                const orderA = a.order !== undefined ? a.order : 9999;
+                const orderB = b.order !== undefined ? b.order : 9999;
+                if (orderA !== orderB) return orderA - orderB;
+
+                // 3. Fallback alfabetico
+                return a.lastName.localeCompare(b.lastName);
+            });
+    }, [state.operators, state.matrices]);
 
     const toggleAssignment = (opId: string, date: string) => {
         if (!selectedAssignment) return;
@@ -154,7 +186,7 @@ export const Assignments = () => {
                         ))}
                     </div>
 
-                    {state.operators.filter(o => o.isActive).map(op => (
+                    {sortedOperators.map(op => (
                         <div key={op.id} className="flex border-b border-slate-300 hover:bg-slate-50">
                             <div className="sticky left-0 w-48 bg-white border-r border-slate-300 flex items-center pl-4 py-2 z-10 shadow-r">
                                 <span className="font-medium text-slate-800 text-sm">{op.lastName} {op.firstName}</span>
