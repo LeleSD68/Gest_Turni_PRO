@@ -202,12 +202,20 @@ export const Assignments = () => {
 
                                 const shiftType = state.shiftTypes.find(s => s.code === shiftCode);
                                 const isWorking = shiftType && shiftType.hours > 0;
+                                // New check: allow assignment only on working shifts and exclude N, F, FE explicitly
+                                const isAssignable = isWorking && !['N', 'F', 'FE'].includes(shiftCode);
+
+                                const canInteract = selectedAssignment === 'CLEAR' 
+                                    ? !!assignment 
+                                    : (!!selectedAssignment && isAssignable);
 
                                 return (
                                     <div 
                                         key={d.toString()} 
-                                        className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-300 text-sm relative ${isWorking ? 'bg-white font-bold text-slate-900' : 'bg-slate-200 text-slate-400'} ${selectedAssignment ? 'cursor-pointer hover:bg-blue-50' : ''}`}
-                                        onClick={() => toggleAssignment(op.id, dateKey)}
+                                        className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-300 text-sm relative ${isWorking ? 'bg-white font-bold text-slate-900' : 'bg-slate-200 text-slate-400'} ${canInteract ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                                        onClick={() => {
+                                            if (canInteract) toggleAssignment(op.id, dateKey);
+                                        }}
                                     >
                                         {!isWorking && !assignment && (
                                             <div className="absolute inset-0" style={{ 
@@ -236,7 +244,7 @@ export const Assignments = () => {
                                         )}
                                         
                                         {/* Hover Preview for Adding */}
-                                        {selectedAssignment && selectedAssignment !== 'CLEAR' && !assignment && (
+                                        {selectedAssignment && selectedAssignment !== 'CLEAR' && !assignment && isAssignable && (
                                             <div 
                                                 className="absolute inset-1 rounded opacity-0 hover:opacity-40 border-2 border-dashed z-20"
                                                 style={{ borderColor: state.assignments.find(a => a.id === selectedAssignment)?.color }}
