@@ -212,12 +212,12 @@ export const Assignments = () => {
                                 return (
                                     <div 
                                         key={d.toString()} 
-                                        className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-300 text-sm relative ${isWorking ? 'bg-white font-bold text-slate-900' : 'bg-slate-200 text-slate-400'} ${canInteract ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                                        className={`flex-1 min-w-[35px] h-10 flex items-center justify-center border-r border-slate-300 text-sm relative ${isAssignable ? 'bg-white font-bold text-slate-900' : 'bg-slate-200 text-slate-400'} ${canInteract ? 'cursor-pointer hover:bg-blue-50' : ''}`}
                                         onClick={() => {
                                             if (canInteract) toggleAssignment(op.id, dateKey);
                                         }}
                                     >
-                                        {!isWorking && !assignment && (
+                                        {!isAssignable && !assignment && (
                                             <div className="absolute inset-0" style={{ 
                                                 backgroundImage: 'repeating-linear-gradient(45deg, #e2e8f0 0, #e2e8f0 2px, transparent 0, transparent 50%)',
                                                 backgroundSize: '4px 4px',
