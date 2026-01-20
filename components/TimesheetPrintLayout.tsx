@@ -129,17 +129,17 @@ export const TimesheetPrintLayout = ({ operatorId }: { operatorId?: string }) =>
 
   return (
     <div 
-      className="p-8 font-sans w-full text-xs min-h-[297mm] flex flex-col bg-white"
+      className="p-8 font-sans w-full text-xs flex flex-col bg-white"
       style={{ 
         width: '420mm', // A3 Landscape
-        height: '297mm',
+        height: '290mm', // Fixed height for vertical distribution
         margin: '0 auto',
         printColorAdjust: 'exact',
         WebkitPrintColorAdjust: 'exact'
       }}
     >
       {/* Header Cartellino */}
-      <div className="flex justify-between items-start mb-6 border-b-2 border-slate-800 pb-4">
+      <div className="flex justify-between items-start mb-4 border-b-2 border-slate-800 pb-2 shrink-0">
         <div>
           <h1 className="text-3xl font-black uppercase tracking-wider text-slate-900 mb-1">Cartellino Presenze</h1>
           <div className="text-xl text-slate-600 font-light flex items-center gap-2">
@@ -155,7 +155,7 @@ export const TimesheetPrintLayout = ({ operatorId }: { operatorId?: string }) =>
       </div>
 
       {/* Griglia Principale */}
-      <div className="border border-slate-300 rounded-sm overflow-hidden mb-6 flex-1">
+      <div className="border border-slate-300 rounded-sm overflow-hidden mb-6 flex-1 bg-white">
           <table className="w-full border-collapse table-fixed h-full">
             <thead>
                 <tr className="bg-slate-100 h-8 border-b border-slate-300">
@@ -198,8 +198,8 @@ export const TimesheetPrintLayout = ({ operatorId }: { operatorId?: string }) =>
                             const hasSpecial = cell.entry?.specialEvents?.length > 0;
                             
                             return (
-                                <td key={i} className={`border-r border-slate-200 p-0 relative align-top h-10 ${isSunday ? 'bg-slate-100' : ''}`}>
-                                    <div className="w-full h-full flex flex-col items-center justify-center relative">
+                                <td key={i} className={`border-r border-slate-200 p-0 relative align-middle ${isSunday ? 'bg-slate-100' : ''}`}>
+                                    <div className="w-full flex flex-col items-center justify-center relative">
                                         {/* Indicatore Evento Speciale (Angolo) */}
                                         {hasSpecial && (
                                             <div className="absolute top-0 right-0 w-2 h-2">
@@ -229,7 +229,7 @@ export const TimesheetPrintLayout = ({ operatorId }: { operatorId?: string }) =>
       </div>
 
       {/* Sezione Riepilogo Voci Speciali & Footer */}
-      <div className="flex gap-8 h-64">
+      <div className="flex gap-8 h-64 shrink-0">
           
           {/* Tabella Voci Speciali */}
           <div className="flex-1 border border-slate-300 rounded-sm overflow-hidden flex flex-col">

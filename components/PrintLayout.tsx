@@ -35,7 +35,7 @@ export const PrintLayout = ({ operatorId }: { operatorId?: string }) => {
       style={{ 
         width: '100%',
         maxWidth: '420mm', // A3 Landscape limit
-        minHeight: '280mm',
+        height: '290mm', // Fixed height to force distribution
         backgroundColor: '#1e3a8a', 
         color: 'white',
         WebkitPrintColorAdjust: 'exact', 
@@ -43,7 +43,7 @@ export const PrintLayout = ({ operatorId }: { operatorId?: string }) => {
         margin: '0 auto'
       }}
     >
-      <div className="flex justify-between items-end mb-6 border-b-2 border-blue-400 pb-4">
+      <div className="flex justify-between items-end mb-4 border-b-2 border-blue-400 pb-2 shrink-0">
         <div>
           <h1 className="text-4xl font-bold uppercase tracking-wider mb-2">Turni Personale</h1>
           <h2 className="text-2xl font-light capitalize">
@@ -167,8 +167,8 @@ export const PrintLayout = ({ operatorId }: { operatorId?: string }) => {
         </table>
       </div>
       
-      <div className="mt-6 pt-4 border-t-2 border-blue-400">
-         <div className="text-center font-bold uppercase text-xs mb-3 tracking-widest opacity-80">Legenda Orari</div>
+      <div className="mt-4 pt-2 border-t-2 border-blue-400 shrink-0">
+         <div className="text-center font-bold uppercase text-xs mb-2 tracking-widest opacity-80">Legenda Orari</div>
          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
             {state.shiftTypes.filter(s => s.hours > 0).map(s => {
                 const timeRange = extractTime(s.name);
@@ -194,7 +194,7 @@ export const PrintLayout = ({ operatorId }: { operatorId?: string }) => {
          </div>
       </div>
 
-      <div className="mt-auto pt-8 flex justify-between items-end">
+      <div className="mt-4 pt-2 flex justify-between items-end shrink-0">
          <div className="text-blue-200 italic text-xs mb-1">
             <div>Aggiornato il:</div>
             <div className="font-bold">{format(new Date(), 'dd/MM/yyyy')} <span className="font-normal">alle</span> {format(new Date(), 'HH:mm')}</div>
