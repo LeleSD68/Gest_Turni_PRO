@@ -173,7 +173,6 @@ export const Planner = () => {
       });
   }, [state.operators, filterStatus, filterMatrix, searchTerm, days, state.plannerData]);
 
-  // ... (rest of planner logic unchanged)
   const groupedOperators = useMemo(() => {
       if (!groupByMatrix) return { 'all': filteredOperators };
       const groups: Record<string, typeof filteredOperators> = {};
@@ -1139,7 +1138,21 @@ export const Planner = () => {
                   else if (statuses.includes('SURPLUS')) finalColor = 'bg-purple-500';
                   const handleCoverageHoverEnter = (e: React.MouseEvent) => {
                       const rect = e.currentTarget.getBoundingClientRect();
-                      setCoveragePopover({ date: dateKey, x: rect.left + rect.width / 2, y: rect.bottom + 5 });
+                      // FIX: Clamp X position to prevent off-screen rendering
+                      let x = rect.left + rect.width / 2;
+                      const popoverHalfWidth = 90; // Half of w-[180px]
+                      const screenWidth = window.innerWidth;
+                      
+                      // Prevent going off right edge
+                      if (x + popoverHalfWidth > screenWidth) {
+                          x = screenWidth - popoverHalfWidth - 10; 
+                      }
+                      // Prevent going off left edge (unlikely here but good practice)
+                      if (x - popoverHalfWidth < 0) {
+                          x = popoverHalfWidth + 10;
+                      }
+
+                      setCoveragePopover({ date: dateKey, x, y: rect.bottom + 5 });
                   };
                   return (
                       <div key={`cov-${dateKey}`} className={`flex-1 min-w-[44px] md:min-w-0 flex items-center justify-center border-r border-slate-200 transition-colors cursor-pointer hover:bg-slate-50 ${isToday(d) ? 'bg-blue-50/30' : ''} ${!isCurrentMonth && viewSpan === 'MONTH' ? 'opacity-30' : ''} ${isPast && highlightPast ? 'opacity-20' : ''}`} onMouseEnter={handleCoverageHoverEnter} onMouseLeave={() => setCoveragePopover(null)}><div className={`w-2.5 h-2.5 rounded-full ${finalColor} shadow-sm border border-white/20`} /></div>
@@ -1270,6 +1283,9 @@ export const Planner = () => {
                           <React.Fragment key={groupKey}>{groupByMatrix && (<div className="sticky left-0 z-20 bg-slate-100 border-b border-slate-300 px-4 py-1 text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"><div className="w-2 h-2 rounded-full" style={{ background: matrix?.color || '#cbd5e1' }} />{groupName} ({groupOps.length})</div>)}
                               {groupOps.map(op => {
                                   const totalHours = days.reduce((acc, d) => {
+                                      // NEW: Escludi giorni non nel mese corrente
+                                      if (!isSameMonth(d, parseISO(state.currentDate))) return acc;
+
                                       const k = formatDateKey(d);
                                       if (!isOperatorEmployed(op, k)) return acc;
                                       const entry = getEntry(state, op.id, k);
@@ -1288,6 +1304,9 @@ export const Planner = () => {
                                       return acc + h;
                                   }, 0);
                                   const totalSpecialHours = days.reduce((acc, d) => {
+                                      // NEW: Escludi giorni non nel mese corrente
+                                      if (!isSameMonth(d, parseISO(state.currentDate))) return acc;
+
                                       const k = formatDateKey(d);
                                       if (!isOperatorEmployed(op, k)) return acc;
                                       const entry = getEntry(state, op.id, k);
