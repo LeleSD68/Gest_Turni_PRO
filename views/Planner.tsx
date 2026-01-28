@@ -49,7 +49,7 @@ export const Planner = () => {
   const [showPrevDays, setShowPrevDays] = useState(false);
   const [groupByMatrix, setGroupByMatrix] = useState(true);
   const [highlightPast, setHighlightPast] = useState(false);
-  const [highlightNotes, setHighlightNotes] = useState(false); // NEW: Toggle highlight notes
+  const [highlightNotes, setHighlightNotes] = useState(() => localStorage.getItem('planner_highlightNotes') === 'true');
   const [isCoverageExpanded, setIsCoverageExpanded] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   
@@ -115,6 +115,11 @@ export const Planner = () => {
   const [newSpecialHours, setNewSpecialHours] = useState<number | ''>('');
   const [newSpecialHoursMode, setNewSpecialHoursMode] = useState<'ADDITIVE' | 'SUBSTITUTIVE' | 'SUBTRACTIVE'>('ADDITIVE');
   const [isSpecialMode, setIsSpecialMode] = useState(false);
+
+  // Persistenza opzione evidenzia note
+  useEffect(() => {
+      localStorage.setItem('planner_highlightNotes', String(highlightNotes));
+  }, [highlightNotes]);
 
   // When printTargetId changes, default to Calendar mode for single operator
   useEffect(() => {
