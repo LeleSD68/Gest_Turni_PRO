@@ -1,11 +1,12 @@
+
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../store';
 import { Modal, Input, Button, Select, Badge, Card } from './UI';
 import { Operator, PlannerEntry } from '../types';
 import { getEntry, calculateMatrixShift, formatDateKey, parseISO, isOperatorEmployed } from '../utils';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { UserCog, BarChart3, CalendarClock, Save, History, Calculator, Plus, Trash2, CalendarRange, ArrowRight, AlertTriangle, FileText, ChevronLeft, ChevronRight, Grid } from 'lucide-react';
-import { format, eachDayOfInterval, isWeekend, isSunday, isSameMonth, addDays, getYear } from 'date-fns';
+import { UserCog, BarChart3, CalendarClock, Save, History, Calculator, Plus, Trash2, CalendarRange, ArrowRight, AlertTriangle, FileText, ChevronLeft, ChevronRight, Grid, Check } from 'lucide-react';
+import { format, eachDayOfInterval, isWeekend, isSunday, isSameMonth, addDays, getYear, subDays } from 'date-fns';
 
 interface OperatorDetailModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export const OperatorDetailModal: React.FC<OperatorDetailModalProps> = ({ isOpen
   // State for adding new matrix assignment
   const [newMatrixId, setNewMatrixId] = useState('');
   const [newMatrixStart, setNewMatrixStart] = useState('');
+  const [startShiftIndex, setStartShiftIndex] = useState(0); // Index of the shift to start with
 
   // State for History Year View
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -251,11 +253,22 @@ export const OperatorDetailModal: React.FC<OperatorDetailModalProps> = ({ isOpen
           return;
       }
 
+      // Calculate the effective start date based on selected shift index
+      // Formula: If user selects date D and wants to start with Shift at index I
+      // The "Theoretical" Matrix Start Date is D - I days.
+      let effectiveStartDate = newMatrixStart;
+      if (startShiftIndex > 0) {
+          const dateObj = parseISO(newMatrixStart);
+          const adjustedDate = subDays(dateObj, startShiftIndex);
+          effectiveStartDate = format(adjustedDate, 'yyyy-MM-dd');
+      }
+
       const currentHistory = editForm.matrixHistory || [];
       const newHistory = [...currentHistory];
       newHistory.sort((a, b) => a.startDate.localeCompare(b.startDate));
-      const newDateObj = parseISO(newMatrixStart);
+      const newDateObj = parseISO(newMatrixStart); // Use the user-selected date for cutting off previous
       
+      // Close previous matrix
       for (let i = 0; i < newHistory.length; i++) {
           const assign = newHistory[i];
           const assignStart = parseISO(assign.startDate);
@@ -271,7 +284,7 @@ export const OperatorDetailModal: React.FC<OperatorDetailModalProps> = ({ isOpen
       filteredHistory.push({
           id: crypto.randomUUID(),
           matrixId: newMatrixId,
-          startDate: newMatrixStart,
+          startDate: effectiveStartDate, // Save the calculated one
           endDate: undefined
       });
 
@@ -279,11 +292,12 @@ export const OperatorDetailModal: React.FC<OperatorDetailModalProps> = ({ isOpen
           ...editForm, 
           matrixHistory: filteredHistory,
           matrixId: newMatrixId, 
-          matrixStartDate: newMatrixStart
+          matrixStartDate: effectiveStartDate
       });
 
       setNewMatrixId('');
       setNewMatrixStart('');
+      setStartShiftIndex(0);
   };
 
   const handleRemoveMatrixAssignment = (assignmentId: string) => {
@@ -297,6 +311,9 @@ export const OperatorDetailModal: React.FC<OperatorDetailModalProps> = ({ isOpen
   const sortedHistory = useMemo(() => {
       return [...(editForm.matrixHistory || [])].sort((a, b) => b.startDate.localeCompare(a.startDate));
   }, [editForm.matrixHistory]);
+
+  // For smart matrix selector
+  const selectedMatrixDef = state.matrices.find(m => m.id === newMatrixId);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Scheda Operatore: ${op.lastName} ${op.firstName}`} className="max-w-5xl">
@@ -501,7 +518,7 @@ export const OperatorDetailModal: React.FC<OperatorDetailModalProps> = ({ isOpen
                                 />
                                 Operatore Attivo
                             </label>
-                            <p className="text-xs text-slate-500 mt-1 pl-6">Se disattivato, l'operatore sarà nascosto nel planner.</p>
+                            <p className="text-xs text-slate-500 mt-1 pl-6">Attiva questa opzione se l'operatore rientra in servizio. Apparirà nuovamente nel planner.</p>
                         </div>
 
                         {/* Contract Management */}
@@ -581,11 +598,11 @@ export const OperatorDetailModal: React.FC<OperatorDetailModalProps> = ({ isOpen
                                 <Plus size={16} className="text-blue-500" />
                                 Assegna Nuova Matrice
                              </h4>
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end mb-4">
                                 <Select 
                                     label="Seleziona Matrice"
                                     value={newMatrixId}
-                                    onChange={(e) => setNewMatrixId(e.target.value)}
+                                    onChange={(e) => { setNewMatrixId(e.target.value); setStartShiftIndex(0); }}
                                     className="w-full text-sm"
                                 >
                                     <option value="">-- Seleziona --</option>
@@ -594,13 +611,41 @@ export const OperatorDetailModal: React.FC<OperatorDetailModalProps> = ({ isOpen
                                     ))}
                                 </Select>
                                 <Input 
-                                    label="Data Inizio"
+                                    label="Data di Rientro / Inizio"
                                     type="date"
                                     value={newMatrixStart}
                                     onChange={(e) => setNewMatrixStart(e.target.value)}
                                     className="w-full text-sm"
                                 />
                              </div>
+
+                             {/* Smart Start Selector */}
+                             {selectedMatrixDef && newMatrixStart && (
+                                 <div className="mb-4 bg-white p-3 rounded border border-slate-200 animate-in fade-in">
+                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                                         Quale turno deve fare il <span className="text-blue-600">{format(parseISO(newMatrixStart), 'dd/MM/yyyy')}</span>?
+                                     </label>
+                                     <div className="flex flex-wrap gap-2">
+                                         {selectedMatrixDef.sequence.map((code, idx) => (
+                                             <button
+                                                 key={idx}
+                                                 onClick={() => setStartShiftIndex(idx)}
+                                                 className={`flex flex-col items-center justify-center p-2 rounded border min-w-[40px] transition-all ${
+                                                     startShiftIndex === idx 
+                                                     ? 'bg-blue-100 border-blue-500 ring-2 ring-blue-200' 
+                                                     : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                                                 }`}
+                                             >
+                                                 <span className={`text-xs font-bold ${startShiftIndex === idx ? 'text-blue-700' : 'text-slate-600'}`}>{code}</span>
+                                                 {startShiftIndex === idx && <Check size={12} className="text-blue-600 mt-1" />}
+                                             </button>
+                                         ))}
+                                     </div>
+                                     <div className="mt-2 text-[10px] text-slate-400 italic">
+                                         Seleziona il turno che l'operatore eseguirà effettivamente nel giorno di inizio selezionato. Il sistema calcolerà l'allineamento automatico.
+                                     </div>
+                                 </div>
+                             )}
                              
                              <div className="mt-3 flex justify-end">
                                  <Button 
@@ -609,14 +654,14 @@ export const OperatorDetailModal: React.FC<OperatorDetailModalProps> = ({ isOpen
                                     disabled={!newMatrixId || !newMatrixStart}
                                     className="text-xs"
                                  >
-                                    Inserisci e Sovrascrivi Precedente
+                                    Inserisci e Attiva
                                  </Button>
                              </div>
                              
                              <div className="mt-2 text-[10px] text-slate-500 bg-white p-2 rounded border border-slate-100 flex items-start gap-2">
                                  <AlertTriangle size={12} className="text-amber-500 shrink-0 mt-0.5"/>
                                  <span>
-                                     Inserendo una nuova matrice, il periodo della matrice precedente verrà automaticamente chiuso al giorno prima della nuova data di inizio.
+                                     Inserendo una nuova matrice, il periodo della matrice precedente verrà chiuso automaticamente al giorno prima della nuova data.
                                  </span>
                              </div>
                         </div>
